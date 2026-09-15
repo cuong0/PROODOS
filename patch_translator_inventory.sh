@@ -1,0 +1,3 @@
+sed -i '/private val englishMap = mapOf(/a \        "Tồn nhiều đến ít" to "Stock: High to Low",\n        "Giá từ thấp đến cao" to "Price: Low to High",\n        "Giá từ cao đến thấp" to "Price: High to Low",' app/src/main/java/com/example/ui/Translator.kt
+sed -i '/private val chineseMap = mapOf(/a \        "Tồn nhiều đến ít" to "库存: 从多到少",\n        "Giá từ thấp đến cao" to "价格: 从低到高",\n        "Giá từ cao đến thấp" to "价格: 从高到低",' app/src/main/java/com/example/ui/Translator.kt
+sed -i '/private val americanMap = mapOf(/a \        "Tồn nhiều đến ít" to "Stock: High to Low",\n        "Giá từ thấp đến cao" to "Price: Low to High",\n        "Giá từ cao đến thấp" to "Price: High to Low",' app/src/main/java/com/example/ui/Translator.kt

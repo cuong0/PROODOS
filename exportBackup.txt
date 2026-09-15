@@ -1,0 +1,36 @@
+    // --- Import / Export Backup ---
+    fun exportBackup(context: Context, uri: Uri, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    backupProgress.value = 0f
+                    backupMessage.value = "Đang chuẩn bị dữ liệu..."
+                }
+
+                val categoriesList = db.categoryDao().getAllCategoriesList()
+                val productsList = db.productDao().getAllProductsList()
+                val invoicesList = db.invoiceDao().getAllInvoicesList()
+                val itemsList = db.invoiceDao().getAllInvoiceItemsList()
+                val importOrdersList = db.importOrderDao().getAllImportOrdersList()
+                val importOrderItemsList = db.importOrderDao().getAllImportOrderItemsList()
+                val prefsKeys = prefs.all.filterValues { it != null }.keys.toList()
+                val filesDir = context.filesDir
+                val imageFiles = filesDir.listFiles { file -> file.isFile } ?: emptyArray()
+
+                val totalItems = 1 + categoriesList.size + productsList.size + invoicesList.size + itemsList.size + importOrdersList.size + importOrderItemsList.size + prefsKeys.size + imageFiles.size
+                var writtenItems = 0
+
+                suspend fun incrementProgress(msg: String) {
+                    writtenItems++
+                    val progress = if (totalItems > 0) writtenItems.toFloat() / totalItems.toFloat() else 1f
+                    withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        backupProgress.value = progress.coerceIn(0f, 1f)
+                        backupMessage.value = msg
+                    }
+                }
+
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    val writer = android.util.JsonWriter(os.writer(Charsets.UTF_8))
+                    writer.beginObject()
+
+                    // 1. Settings

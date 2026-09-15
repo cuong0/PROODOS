@@ -1,0 +1,3 @@
+sed -i '/private val englishMap = mapOf(/a \        "Chọn phương thức thanh toán" to "Select payment method",\n        "Tiền mặt" to "Cash",\n        "Chuyển khoản" to "Transfer",' app/src/main/java/com/example/ui/Translator.kt
+sed -i '/private val chineseMap = mapOf(/a \        "Chọn phương thức thanh toán" to "选择付款方式",\n        "Tiền mặt" to "现金",\n        "Chuyển khoản" to "转账",' app/src/main/java/com/example/ui/Translator.kt
+sed -i '/private val americanMap = mapOf(/a \        "Chọn phương thức thanh toán" to "Select payment method",\n        "Tiền mặt" to "Cash",\n        "Chuyển khoản" to "Transfer",' app/src/main/java/com/example/ui/Translator.kt

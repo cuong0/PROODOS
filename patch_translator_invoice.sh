@@ -1,0 +1,3 @@
+sed -i '/private val englishMap = mapOf(/a \        "Tên sản phẩm" to "Product Name",\n        "SL" to "Qty",\n        "Đơn giá" to "Price",\n        "Thành tiền" to "Total",' app/src/main/java/com/example/ui/Translator.kt
+sed -i '/private val chineseMap = mapOf(/a \        "Tên sản phẩm" to "产品名称",\n        "SL" to "数量",\n        "Đơn giá" to "单价",\n        "Thành tiền" to "总价",' app/src/main/java/com/example/ui/Translator.kt
+sed -i '/private val americanMap = mapOf(/a \        "Tên sản phẩm" to "Product Name",\n        "SL" to "Qty",\n        "Đơn giá" to "Price",\n        "Thành tiền" to "Total",' app/src/main/java/com/example/ui/Translator.kt

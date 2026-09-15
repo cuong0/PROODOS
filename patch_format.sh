@@ -1,0 +1,1 @@
+sed -i 's/val sdf = SimpleDateFormat("dd '\''Tháng'\'' MM, yyyy", Locale("vi", "VN"))/val sdf = SimpleDateFormat("dd MM, yyyy", Locale("vi", "VN"))\n    val parts = sdf.format(Date(timestamp)).split(" ")\n    return "${parts[0]} ${"Tháng".t()} ${parts[1]}"/g' app/src/main/java/com/example/ui/PosApp.kt

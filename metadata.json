@@ -1,0 +1,8 @@
+{
+  "name": "Proodos",
+  "description": "Ứng dụng bán lẻ POS, quản lý mặt hàng, danh mục và hóa đơn tiện lợi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,1 @@
+sed -i '/import androidx.activity.compose.setContent/a import androidx.lifecycle.compose.collectAsStateWithLifecycle\nimport androidx.compose.runtime.getValue' app/src/main/java/com/example/MainActivity.kt
