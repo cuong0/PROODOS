@@ -1,5 +1,7 @@
 package com.example.ui
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 
 import android.Manifest
 import android.content.Context
@@ -86,6 +88,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
@@ -99,6 +102,24 @@ import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
 import java.text.SimpleDateFormat
 import java.util.*
+
+fun String.capitalizeWords(): String {
+    if (this.isEmpty()) return this
+    val chars = this.toCharArray()
+    var capitalizeNext = true
+    for (i in chars.indices) {
+        val c = chars[i]
+        if (c.isWhitespace()) {
+            capitalizeNext = true
+        } else if (capitalizeNext) {
+            if (c.isLetter()) {
+                chars[i] = c.uppercaseChar()
+                capitalizeNext = false
+            }
+        }
+    }
+    return String(chars)
+}
 
 // Formatter to match 1.000đ requirement
 fun formatCurrency(value: Double): String {
@@ -298,6 +319,7 @@ fun PosApp(viewModel: MainViewModel) {
     }
 
     MyApplicationTheme(darkTheme = isDark) {
+        val showOnboardingTour by viewModel.showOnboardingTour.collectAsStateWithLifecycle()
         val backupProgress by viewModel.backupProgress.collectAsStateWithLifecycle()
         var showBackupExitWarningDialog by remember { mutableStateOf(false) }
 
@@ -370,93 +392,109 @@ fun PosApp(viewModel: MainViewModel) {
             )
         }
 
-        Surface(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { focusManager.clearFocus() }
-                    )
-                },
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Scaffold(
-                bottomBar = {
-                    if (subScreen == null) {
-                        BottomBar(
-                            currentTab = currentTab,
-                            onTabSelected = { viewModel.selectTab(it) }
+        Box(modifier = Modifier.fillMaxSize()) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { focusManager.clearFocus() }
                         )
+                    },
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Scaffold(
+                    bottomBar = {
+                        if (subScreen == null) {
+                            BottomBar(
+                                currentTab = currentTab,
+                                onTabSelected = { viewModel.selectTab(it) },
+                                viewModel = viewModel
+                            )
+                        }
                     }
-                }
-            ) { innerPadding ->
-                val layoutDirection = LocalLayoutDirection.current
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            start = innerPadding.calculateLeftPadding(layoutDirection),
-                            end = innerPadding.calculateRightPadding(layoutDirection),
-                            bottom = innerPadding.calculateBottomPadding(),
-                            top = if (subScreen != null) 0.dp else innerPadding.calculateTopPadding()
-                        )
-                ) {
-                    if (subScreen != null) {
-                        BackHandler {
-                            when (subScreen) {
-                                SubScreen.CREATE_PRODUCT, SubScreen.EDIT_PRODUCT -> {
-                                    viewModel.selectSubScreen(SubScreen.PRODUCTS_LIST)
-                                }
-                                SubScreen.CREATE_CATEGORY -> {
-                                    viewModel.selectSubScreen(SubScreen.CATEGORIES_LIST)
-                                }
-                                else -> {
-                                    viewModel.selectSubScreen(null)
+                ) { innerPadding ->
+                    val layoutDirection = LocalLayoutDirection.current
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(
+                                start = innerPadding.calculateLeftPadding(layoutDirection),
+                                end = innerPadding.calculateRightPadding(layoutDirection),
+                                bottom = innerPadding.calculateBottomPadding(),
+                                top = if (subScreen != null) 0.dp else innerPadding.calculateTopPadding()
+                            )
+                            .imePadding()
+                    ) {
+                        if (subScreen != null) {
+                            BackHandler {
+                                when (subScreen) {
+                                    SubScreen.CREATE_PRODUCT, SubScreen.EDIT_PRODUCT -> {
+                                        viewModel.selectSubScreen(SubScreen.PRODUCTS_LIST)
+                                    }
+                                    SubScreen.CREATE_CATEGORY -> {
+                                        viewModel.selectSubScreen(SubScreen.CATEGORIES_LIST)
+                                    }
+                                    else -> {
+                                        viewModel.selectSubScreen(null)
+                                    }
                                 }
                             }
-                        }
-                                                // SubScreens routing overlay
-                        when (subScreen) {
-                            SubScreen.CART -> CartScreen(viewModel)
-                            SubScreen.PRODUCTS_LIST -> ProductsListScreen(viewModel)
-                            SubScreen.CATEGORIES_LIST -> CategoriesListScreen(viewModel)
-                            SubScreen.CREATE_PRODUCT -> CreateProductScreen(viewModel)
-                            SubScreen.CREATE_CATEGORY -> CreateCategoryScreen(viewModel)
-                            SubScreen.INVOICE_DETAIL -> InvoiceDetailScreen(viewModel)
-                            SubScreen.EDIT_PRODUCT -> EditProductScreen(viewModel)
-                            SubScreen.CUSTOMERS_LIST -> CustomersListScreen(viewModel)
-                            SubScreen.INVENTORY_MANAGEMENT -> InventoryManagementScreen(viewModel)
-                            SubScreen.DEBT_MANAGEMENT -> DebtManagementScreen(viewModel)
-                            SubScreen.IMPORT_MANAGEMENT -> ImportManagementScreen(viewModel)
-                            else -> {}
-                        }
-                    } else {
-                        // Main Tabs routing
-                        when (currentTab) {
-                            MainTab.BAN_HANG -> PosTab(viewModel)
-                            MainTab.HOA_DON -> InvoicesTab(viewModel)
-                            MainTab.QUAN_LY -> ManagementTab(viewModel)
-                            MainTab.CAI_DAT -> SettingsTab(viewModel)
+                                                    // SubScreens routing overlay
+                            when (subScreen) {
+                                SubScreen.CART -> CartScreen(viewModel)
+                                SubScreen.PRODUCTS_LIST -> ProductsListScreen(viewModel)
+                                SubScreen.CATEGORIES_LIST -> CategoriesListScreen(viewModel)
+                                SubScreen.CREATE_PRODUCT -> CreateProductScreen(viewModel)
+                                SubScreen.CREATE_CATEGORY -> CreateCategoryScreen(viewModel)
+                                SubScreen.INVOICE_DETAIL -> InvoiceDetailScreen(viewModel)
+                                SubScreen.EDIT_PRODUCT -> EditProductScreen(viewModel)
+                                SubScreen.CUSTOMERS_LIST -> CustomersListScreen(viewModel)
+                                SubScreen.INVENTORY_MANAGEMENT -> InventoryManagementScreen(viewModel)
+                                SubScreen.DEBT_MANAGEMENT -> DebtManagementScreen(viewModel)
+                                SubScreen.IMPORT_MANAGEMENT -> ImportManagementScreen(viewModel)
+                                else -> {}
+                            }
+                        } else {
+                            // Main Tabs routing
+                            when (currentTab) {
+                                MainTab.BAN_HANG -> PosTab(viewModel)
+                                MainTab.HOA_DON -> InvoicesTab(viewModel)
+                                MainTab.QUAN_LY -> ManagementTab(viewModel)
+                                MainTab.CAI_DAT -> SettingsTab(viewModel)
+                            }
                         }
                     }
                 }
+            }
+
+            // Spotlight Tooltip Onboarding Tour ("tin nổi lên chỉ vào phần cần giới thiệu")
+            if (showOnboardingTour) {
+                OnboardingTourScreen(viewModel = viewModel)
             }
         }
     }
 }
 
 @Composable
-fun BottomBar(currentTab: MainTab, onTabSelected: (MainTab) -> Unit) {
+fun BottomBar(currentTab: MainTab, onTabSelected: (MainTab) -> Unit, viewModel: MainViewModel? = null) {
     NavigationBar(
-        modifier = Modifier.testTag("bottom_nav_bar"),
+        modifier = Modifier
+            .height(63.dp)
+            .testTag("bottom_nav_bar"),
+        windowInsets = WindowInsets(0, 0, 0, 0),
         containerColor = MaterialTheme.colorScheme.background,
         tonalElevation = 0.dp
     ) {
         NavigationBarItem(
+            modifier = Modifier.onGloballyPositioned { coords ->
+                viewModel?.registerOnboardingTarget("tab_ban_hang", coords.boundsInRoot())
+            },
             selected = currentTab == MainTab.BAN_HANG,
             onClick = { onTabSelected(MainTab.BAN_HANG) },
-            icon = { Icon(Icons.Default.Storefront, contentDescription = "Bán hàng".t()) },
+            icon = { Icon(Icons.Default.Storefront, contentDescription = "Bán hàng".t(), modifier = Modifier.size(22.dp)) },
             label = { Text("Bán hàng".t(), fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+            alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.onBackground,
                 selectedTextColor = MaterialTheme.colorScheme.onBackground,
@@ -466,10 +504,14 @@ fun BottomBar(currentTab: MainTab, onTabSelected: (MainTab) -> Unit) {
             )
         )
         NavigationBarItem(
+            modifier = Modifier.onGloballyPositioned { coords ->
+                viewModel?.registerOnboardingTarget("tab_hoa_don", coords.boundsInRoot())
+            },
             selected = currentTab == MainTab.HOA_DON,
             onClick = { onTabSelected(MainTab.HOA_DON) },
-            icon = { Icon(Icons.Outlined.ReceiptLong, contentDescription = "Hóa đơn".t()) },
+            icon = { Icon(Icons.Outlined.ReceiptLong, contentDescription = "Hóa đơn".t(), modifier = Modifier.size(22.dp)) },
             label = { Text("Hóa đơn".t(), fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+            alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.onBackground,
                 selectedTextColor = MaterialTheme.colorScheme.onBackground,
@@ -481,8 +523,9 @@ fun BottomBar(currentTab: MainTab, onTabSelected: (MainTab) -> Unit) {
         NavigationBarItem(
             selected = currentTab == MainTab.QUAN_LY,
             onClick = { onTabSelected(MainTab.QUAN_LY) },
-            icon = { Icon(Icons.Default.Category, contentDescription = "Quản lý".t()) },
+            icon = { Icon(Icons.Default.Category, contentDescription = "Quản lý".t(), modifier = Modifier.size(22.dp)) },
             label = { Text("Quản lý".t(), fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+            alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.onBackground,
                 selectedTextColor = MaterialTheme.colorScheme.onBackground,
@@ -494,8 +537,9 @@ fun BottomBar(currentTab: MainTab, onTabSelected: (MainTab) -> Unit) {
         NavigationBarItem(
             selected = currentTab == MainTab.CAI_DAT,
             onClick = { onTabSelected(MainTab.CAI_DAT) },
-            icon = { Icon(Icons.Default.Settings, contentDescription = "Cài đặt".t()) },
+            icon = { Icon(Icons.Default.Settings, contentDescription = "Cài đặt".t(), modifier = Modifier.size(22.dp)) },
             label = { Text("Cài đặt".t(), fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+            alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = MaterialTheme.colorScheme.onBackground,
                 selectedTextColor = MaterialTheme.colorScheme.onBackground,
@@ -585,7 +629,7 @@ fun PosTab(viewModel: MainViewModel) {
 
     val ScrollableHeader = @Composable { paddingHorizontal: androidx.compose.ui.unit.Dp ->
         Column(modifier = Modifier.fillMaxWidth()) {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             // Search product text field styled
             TextField(
                 value = searchQuery,
@@ -595,7 +639,7 @@ fun PosTab(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = paddingHorizontal)
-                    .height(52.dp)
+                    .height(50.dp)
                     .border(1.dp, MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
                     .testTag("pos_search_input"),
                 shape = RoundedCornerShape(16.dp),
@@ -614,7 +658,7 @@ fun PosTab(viewModel: MainViewModel) {
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp),
+                    .padding(top = 8.dp, bottom = 10.dp),
                 contentPadding = PaddingValues(horizontal = paddingHorizontal),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -695,7 +739,7 @@ fun PosTab(viewModel: MainViewModel) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 4.dp),
+                .padding(start = 20.dp, top = 0.5.dp, end = 20.dp, bottom = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -716,36 +760,54 @@ fun PosTab(viewModel: MainViewModel) {
             }
 
             // Tactile Shopping Cart icon customized
+            val totalCartQty = cart.sumOf { it.quantity }
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .clickable { viewModel.selectSubScreen(SubScreen.CART) }
-                    .testTag("view_cart_button"),
-                contentAlignment = Alignment.Center
+                    .wrapContentSize()
+                    .testTag("view_cart_button_wrapper")
             ) {
-                Icon(
-                    Icons.Default.ShoppingCart,
-                    contentDescription = "Giỏ hàng",
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(24.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .clickable { viewModel.selectSubScreen(SubScreen.CART) }
+                        .testTag("view_cart_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.ShoppingCart,
+                        contentDescription = "Giỏ hàng",
+                        tint = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
                 if (cart.isNotEmpty()) {
+                    val qtyText = if (totalCartQty > 999) "999+" else totalCartQty.toString()
+                    val badgeFontSize = when {
+                        qtyText.length >= 4 -> 9.sp
+                        qtyText.length == 3 -> 10.sp
+                        qtyText.length == 2 -> 11.sp
+                        else -> 12.sp
+                    }
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .offset(x = 4.dp, y = (-4).dp)
-                            .size(20.dp)
-                            .background(MaterialTheme.colorScheme.primary, CircleShape)
-                            .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
+                            .offset(x = 8.dp, y = (-8).dp)
+                            .defaultMinSize(minWidth = 24.dp, minHeight = 24.dp)
+                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(99.dp))
+                            .border(2.dp, MaterialTheme.colorScheme.background, RoundedCornerShape(99.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = cart.sumOf { it.quantity }.toString(),
+                            text = qtyText,
                             color = MaterialTheme.colorScheme.onPrimary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = badgeFontSize,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -1617,6 +1679,20 @@ fun ManagementTab(viewModel: MainViewModel) {
         viewModel.saveScrollPosition("management_tab", 0, scrollState.value)
     }
 
+    val currentOnboardingStep by viewModel.onboardingStepIndex.collectAsStateWithLifecycle()
+    val isTourActive by viewModel.showOnboardingTour.collectAsStateWithLifecycle()
+    LaunchedEffect(currentOnboardingStep, isTourActive) {
+        if (isTourActive) {
+            when (currentOnboardingStep) {
+                2 -> scrollState.animateScrollTo(0)
+                3 -> scrollState.animateScrollTo(90)
+                4 -> scrollState.animateScrollTo(230)
+                5 -> scrollState.animateScrollTo(360)
+                6 -> scrollState.animateScrollTo(520)
+            }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -1639,6 +1715,9 @@ fun ManagementTab(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp)
+                    .onGloballyPositioned { coords ->
+                        viewModel.registerOnboardingTarget("manage_products_card", coords.boundsInRoot())
+                    }
                     .clickable { viewModel.selectSubScreen(SubScreen.PRODUCTS_LIST) }
                     .testTag("manage_products_menu"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
@@ -1680,6 +1759,9 @@ fun ManagementTab(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp)
+                    .onGloballyPositioned { coords ->
+                        viewModel.registerOnboardingTarget("manage_inventory_card", coords.boundsInRoot())
+                    }
                     .clickable { viewModel.selectSubScreen(SubScreen.INVENTORY_MANAGEMENT) }
                     .testTag("manage_inventory_menu"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1721,6 +1803,9 @@ fun ManagementTab(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp)
+                    .onGloballyPositioned { coords ->
+                        viewModel.registerOnboardingTarget("manage_import_card", coords.boundsInRoot())
+                    }
                     .clickable { viewModel.selectSubScreen(SubScreen.IMPORT_MANAGEMENT) }
                     .testTag("manage_import_menu"),
                 colors = CardDefaults.cardColors(containerColor = if (isDark) Color(0xFF1B3B22) else Color(0xFFE8F5E9)),
@@ -1763,6 +1848,9 @@ fun ManagementTab(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp)
+                    .onGloballyPositioned { coords ->
+                        viewModel.registerOnboardingTarget("manage_debt_card", coords.boundsInRoot())
+                    }
                     .clickable { viewModel.selectSubScreen(SubScreen.DEBT_MANAGEMENT) }
                     .testTag("manage_debt_menu"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
@@ -1804,6 +1892,9 @@ fun ManagementTab(viewModel: MainViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(110.dp)
+                    .onGloballyPositioned { coords ->
+                        viewModel.registerOnboardingTarget("manage_customers_card", coords.boundsInRoot())
+                    }
                     .clickable { viewModel.selectSubScreen(SubScreen.CUSTOMERS_LIST) }
                     .testTag("manage_customers_menu"),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
@@ -2142,6 +2233,17 @@ fun SettingsTab(viewModel: MainViewModel) {
             }
     }
 
+    val currentOnboardingStep by viewModel.onboardingStepIndex.collectAsStateWithLifecycle()
+    val isTourActive by viewModel.showOnboardingTour.collectAsStateWithLifecycle()
+    LaunchedEffect(currentOnboardingStep, isTourActive) {
+        if (isTourActive) {
+            when (currentOnboardingStep) {
+                7 -> listState.animateScrollToItem(4)
+                8 -> listState.animateScrollToItem(5)
+            }
+        }
+    }
+
     LazyColumn(
         state = listState,
         modifier = Modifier
@@ -2301,7 +2403,11 @@ fun SettingsTab(viewModel: MainViewModel) {
         // Section 5: "Cấp quyền cho tất cả"
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coords ->
+                        viewModel.registerOnboardingTarget("settings_permissions_card", coords.boundsInRoot())
+                    },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
@@ -2350,7 +2456,11 @@ fun SettingsTab(viewModel: MainViewModel) {
         // Section 5.3: Sao lưu & Khôi phục dữ liệu
         item {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coords ->
+                        viewModel.registerOnboardingTarget("settings_backup_card", coords.boundsInRoot())
+                    },
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
@@ -2593,6 +2703,55 @@ fun SettingsTab(viewModel: MainViewModel) {
             }
         }
 
+        // Section 5.6: Hướng dẫn sử dụng ứng dụng
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.MenuBook,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Hướng dẫn sử dụng".t(),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Xem lại hướng dẫn chi tiết các tính năng cơ bản trong ứng dụng (Bán hàng, Hóa đơn & Báo cáo, Quản lý kho, Nhập hàng, Công nợ, Khách hàng, Cấp quyền, Sao lưu dữ liệu).".t(),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { viewModel.restartOnboardingTour() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .testTag("view_user_guide_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HelpOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Xem lại hướng dẫn".t(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
         // Section 6: Giới thiệu
         item {
             Card(
@@ -2691,6 +2850,7 @@ fun CartScreen(viewModel: MainViewModel) {
 
     var storeNameField by remember { mutableStateOf(savedStoreName) }
     var itemToDelete by remember { mutableStateOf<CartItem?>(null) }
+    var swipedItemId by remember { mutableStateOf<Int?>(null) }
     var showCheckoutSuccess by remember { mutableStateOf(false) }
     var showPaymentDialog by remember { mutableStateOf(false) }
     var selectedPaymentMethod by remember { mutableStateOf("TM") }
@@ -2728,13 +2888,42 @@ fun CartScreen(viewModel: MainViewModel) {
         viewModel.setStoreName(name)
     }
 
+    BackHandler {
+        focusManager.clearFocus()
+        viewModel.selectSubScreen(null)
+    }
+
+    val totalCartQty = cart.sumOf { it.quantity }
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("Chi tiết Hóa đơn".t()) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Giỏ hàng".t(), fontWeight = FontWeight.Bold)
+                        if (cart.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = "$totalCartQty " + "món".t(),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(
-                        onClick = { viewModel.selectSubScreen(null) },
+                        onClick = {
+                            focusManager.clearFocus()
+                            viewModel.selectSubScreen(null)
+                        },
                         modifier = Modifier.testTag("cart_back_btn")
                     ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Trở về".t())
@@ -2746,41 +2935,50 @@ fun CartScreen(viewModel: MainViewModel) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingVal)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { focusManager.clearFocus() })
+                .padding(top = paddingVal.calculateTopPadding())
+                .pointerInput(swipedItemId) {
+                    detectTapGestures(
+                        onPress = {
+                            if (swipedItemId != null) {
+                                swipedItemId = null
+                            }
+                        },
+                        onTap = {
+                            focusManager.clearFocus()
+                            if (swipedItemId != null) {
+                                swipedItemId = null
+                            }
+                        }
+                    )
                 }
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Tên khách hàng / cửa hàng input card with auto-save
+                // Tên khách hàng input card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
+                        .padding(start = 12.dp, end = 12.dp, top = 0.5.dp, bottom = 4.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                         Text(
-                            text = "Tối ưu hóa quản lý và tra soát khách hàng".t(),
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Nhập Tên Khách Hàng (Tự động lưu)".t(),
+                            text = "Tên khách hàng".t(),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
                                 value = storeNameField,
                                 onValueChange = {
-                                    onStoreNameChanged(it)
+                                    val formatted = it.capitalizeWords()
+                                    onStoreNameChanged(formatted)
                                     showSuggestions = true
                                 },
+                                keyboardOptions = KeyboardOptions(
+                                    capitalization = KeyboardCapitalization.Words
+                                ),
                                 singleLine = true,
                                 placeholder = { Text("Tên khách hàng...".t()) },
                                 modifier = Modifier
@@ -2821,15 +3019,36 @@ fun CartScreen(viewModel: MainViewModel) {
                         Text("Giỏ hàng của bạn đang trống".t(), color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
                     }
                 } else {
+                    val lazyListState = rememberLazyListState()
+                    LaunchedEffect(lazyListState.isScrollInProgress) {
+                        if (lazyListState.isScrollInProgress && swipedItemId != null) {
+                            swipedItemId = null
+                        }
+                    }
+
                     LazyColumn(
+                        state = lazyListState,
                         modifier = Modifier
                             .weight(1f)
                             .padding(horizontal = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(cart) { cartItem ->
+                        items(cart, key = { it.product.id }) { cartItem ->
                             CartItemRow(
                                 cartItem = cartItem,
+                                isSwiped = swipedItemId == cartItem.product.id,
+                                onSwipeChange = { swiped ->
+                                    if (swiped) {
+                                        swipedItemId = cartItem.product.id
+                                    } else if (swipedItemId == cartItem.product.id) {
+                                        swipedItemId = null
+                                    }
+                                },
+                                onResetSwipe = {
+                                    if (swipedItemId == cartItem.product.id) {
+                                        swipedItemId = null
+                                    }
+                                },
                                 onQuantityChange = { q ->
                                     val success = viewModel.updateCartQuantity(cartItem.product.id, q)
                                     if (!success) {
@@ -2849,17 +3068,25 @@ fun CartScreen(viewModel: MainViewModel) {
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 3.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "Tổng cộng tiền hàng:".t(),
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
-                                )
+                                Column {
+                                    Text(
+                                        text = "Tổng cộng tiền hàng:".t(),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp
+                                    )
+                                    val totalItems = cart.sumOf { it.quantity }
+                                    Text(
+                                        text = "Tổng số lượng: %d mặt hàng (%d sản phẩm)".t().format(cart.size, totalItems),
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                                 Text(
                                     text = formatCurrency(cart.sumOf { it.sellPrice * it.quantity }),
                                     fontWeight = FontWeight.ExtraBold,
@@ -2868,7 +3095,7 @@ fun CartScreen(viewModel: MainViewModel) {
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             Button(
                                 onClick = {
@@ -3047,189 +3274,355 @@ fun CartScreen(viewModel: MainViewModel) {
 @Composable
 fun CartItemRow(
     cartItem: CartItem,
+    isSwiped: Boolean,
+    onSwipeChange: (Boolean) -> Unit,
+    onResetSwipe: () -> Unit,
     onQuantityChange: (Int) -> Unit,
     onPriceChange: (Double) -> Unit,
     onDelete: () -> Unit
 ) {
     var priceEditor by remember(cartItem.sellPrice) { mutableStateOf(cartItem.sellPrice.toInt().toString()) }
     var qtyEditor by remember(cartItem.quantity) { mutableStateOf(cartItem.quantity.toString()) }
+    var isQtyFocused by remember { mutableStateOf(false) }
 
-    Card(
+    LaunchedEffect(cartItem.quantity) {
+        if (!isQtyFocused) {
+            qtyEditor = cartItem.quantity.toString()
+        }
+    }
+
+    val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
+    val maxSwipePx = with(density) { 80.dp.toPx() }
+    val offsetX = remember { Animatable(0f) }
+
+    LaunchedEffect(isSwiped) {
+        val target = if (isSwiped) -maxSwipePx else 0f
+        if (offsetX.value != target) {
+            offsetX.animateTo(
+                targetValue = target,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                )
+            )
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("cart_item_${cartItem.product.id}"),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+            .clip(RoundedCornerShape(12.dp))
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+        // Red background with White Trash icon on the right, only visible when swiped/dragging
+        if (offsetX.value < 0f || isSwiped) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.error)
+                    .clickable {
+                        onDelete()
+                    }
+                    .testTag("swipe_delete_action_${cartItem.product.id}"),
+                contentAlignment = Alignment.CenterEnd
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = cartItem.product.name,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        text = "Vốn: ".t() + "${formatCurrency(cartItem.importPrice)}/" + "sp".t(),
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                    if (cartItem.product.trackInventory) {
+                Box(
+                    modifier = Modifier
+                        .width(80.dp)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Xóa mặt hàng".t(),
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Tồn còn lại: ".t() + (cartItem.product.stockQuantity - cartItem.quantity),
+                            text = "Xóa".t(),
+                            color = Color.White,
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                }
-
-                // Delete Button
-                IconButton(
-                    onClick = { onDelete() },
-                    modifier = Modifier
-                        .size(28.dp)
-                        .testTag("delete_item_btn_${cartItem.product.id}")
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Hủy",
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(18.dp)
-                    )
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Sửa giá bán bằng bàn phím
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Đơn giá:".t(), fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
-                    OutlinedTextField(
-                        value = TextFieldValue(text = priceEditor, selection = TextRange(priceEditor.length)),
-                        onValueChange = { textFieldValue ->
-                            val input = textFieldValue.text
-                            val filtered = input.filter { it.isDigit() }
-                            priceEditor = filtered
-                            val newPrice = filtered.toDoubleOrNull()
-                            if (newPrice != null) {
-                                onPriceChange(newPrice)
+        // Foreground item card with horizontal drag gesture (Solid opaque surface)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .pointerInput(cartItem.product.id) {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            // Any drag starts
+                        },
+                        onDragEnd = {
+                            coroutineScope.launch {
+                                // If dragged left by more than 35% of maxSwipe, reveal delete button
+                                if (offsetX.value < -maxSwipePx * 0.35f) {
+                                    onSwipeChange(true)
+                                    offsetX.animateTo(
+                                        -maxSwipePx,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                        )
+                                    )
+                                } else {
+                                    onSwipeChange(false)
+                                    offsetX.animateTo(
+                                        0f,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                        )
+                                    )
+                                }
                             }
                         },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        visualTransformation = ThousandsSeparatorVisualTransformation(),
-                        singleLine = true,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
-                        ),
-                        modifier = Modifier
-                            .width(100.dp)
-                            .height(44.dp)
-                            .testTag("price_input_${cartItem.product.id}")
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    priceEditor = ""
-                                } else {
-                                    if (priceEditor.isEmpty()) {
-                                        priceEditor = cartItem.sellPrice.toInt().toString()
-                                    }
-                                }
-                            },
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
+                        onDragCancel = {
+                            coroutineScope.launch {
+                                val target = if (isSwiped) -maxSwipePx else 0f
+                                offsetX.animateTo(target)
+                            }
+                        },
+                        onHorizontalDrag = { _, dragAmount ->
+                            coroutineScope.launch {
+                                val newOffset = (offsetX.value + dragAmount).coerceIn(-maxSwipePx, 0f)
+                                offsetX.snapTo(newOffset)
+                            }
+                        }
                     )
                 }
-
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Điểu chỉnh số lượng (+ / -) và bàn phím
+                .testTag("cart_item_${cartItem.product.id}"),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.End
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                            .clip(CircleShape)
-                            .clickable { if (cartItem.quantity > 1) onQuantityChange(cartItem.quantity - 1) }
-                            .testTag("qty_minus_${cartItem.product.id}")
-                    ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "-",
+                            text = cartItem.product.name,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "Vốn: ".t() + "${formatCurrency(cartItem.importPrice)}/" + "sp".t(),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         )
                     }
 
-                    OutlinedTextField(
-                        value = TextFieldValue(text = qtyEditor, selection = TextRange(qtyEditor.length)),
-                        onValueChange = { textFieldValue ->
-                            val input = textFieldValue.text
-                            val filtered = input.filter { it.isDigit() }
-                            qtyEditor = filtered
-                            val num = filtered.toIntOrNull()
-                            if (num != null && num > 0) {
-                                onQuantityChange(num)
-                            }
-                        },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent
-                        ),
+                    IconButton(
+                        onClick = { onDelete() },
                         modifier = Modifier
-                            .width(75.dp)
-                            .height(44.dp)
-                            .padding(horizontal = 4.dp)
-                            .testTag("qty_input_${cartItem.product.id}")
-                            .onFocusChanged { focusState ->
-                                if (focusState.isFocused) {
-                                    qtyEditor = ""
-                                } else {
-                                    if (qtyEditor.isEmpty()) {
-                                        qtyEditor = cartItem.quantity.toString()
-                                    }
+                            .size(32.dp)
+                            .testTag("delete_btn_${cartItem.product.id}")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Xóa mặt hàng".t(),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Sửa giá bán bằng bàn phím
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Đơn giá:".t(), fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
+                        OutlinedTextField(
+                            value = TextFieldValue(text = priceEditor, selection = TextRange(priceEditor.length)),
+                            onValueChange = { textFieldValue ->
+                                val input = textFieldValue.text
+                                val filtered = input.filter { it.isDigit() }
+                                priceEditor = filtered
+                                val newPrice = filtered.toDoubleOrNull()
+                                if (newPrice != null) {
+                                    onPriceChange(newPrice)
                                 }
                             },
-                        textStyle = androidx.compose.ui.text.TextStyle(
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                            ),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                onDone = {
+                                    focusManager.clearFocus()
+                                }
+                            ),
+                            visualTransformation = ThousandsSeparatorVisualTransformation(),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            ),
+                            modifier = Modifier
+                                .width(100.dp)
+                                .height(44.dp)
+                                .testTag("price_input_${cartItem.product.id}")
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        priceEditor = ""
+                                    } else {
+                                        val parsed = priceEditor.toDoubleOrNull()
+                                        if (parsed == null) {
+                                            priceEditor = cartItem.sellPrice.toInt().toString()
+                                        } else {
+                                            priceEditor = parsed.toInt().toString()
+                                        }
+                                    }
+                                },
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp)
                         )
-                    )
+                    }
 
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(22.dp)
-                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
-                            .clip(CircleShape)
-                            .clickable { onQuantityChange(cartItem.quantity + 1) }
-                            .testTag("qty_plus_${cartItem.product.id}")
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Điểu chỉnh số lượng (+ / -) và bàn phím
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
                     ) {
-                        Text(
-                            text = "+",
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 12.sp,
-                            textAlign = TextAlign.Center
-                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                .clip(CircleShape)
+                                .clickable { if (cartItem.quantity > 1) onQuantityChange(cartItem.quantity - 1) }
+                                .testTag("qty_minus_${cartItem.product.id}")
+                        ) {
+                            Text(
+                                text = "-",
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 18.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+
+                        // Compact input container ensuring full number visibility without clipping
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 6.dp)
+                                .height(44.dp)
+                                .width(50.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            androidx.compose.foundation.text.BasicTextField(
+                                value = TextFieldValue(text = qtyEditor, selection = TextRange(qtyEditor.length)),
+                                onValueChange = { textFieldValue ->
+                                    val input = textFieldValue.text
+                                    val filtered = input.filter { it.isDigit() }
+                                    qtyEditor = filtered
+                                    val num = filtered.toIntOrNull()
+                                    if (num != null && num > 0) {
+                                        onQuantityChange(num)
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                                ),
+                                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                    onDone = {
+                                        focusManager.clearFocus()
+                                    }
+                                ),
+                                singleLine = true,
+                                decorationBox = { innerTextField ->
+                                    Box(contentAlignment = Alignment.Center) {
+                                        if (qtyEditor.isEmpty()) {
+                                            Text(
+                                                text = cartItem.quantity.toString(),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("qty_input_${cartItem.product.id}")
+                                    .onFocusChanged { focusState ->
+                                        isQtyFocused = focusState.isFocused
+                                        if (focusState.isFocused) {
+                                            qtyEditor = ""
+                                        } else {
+                                            val num = qtyEditor.toIntOrNull()
+                                            if (num == null || num <= 0) {
+                                                qtyEditor = cartItem.quantity.toString()
+                                            } else {
+                                                qtyEditor = num.toString()
+                                            }
+                                        }
+                                    },
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                            )
+                        }
+
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                .clip(CircleShape)
+                                .clickable { onQuantityChange(cartItem.quantity + 1) }
+                                .testTag("qty_plus_${cartItem.product.id}")
+                        ) {
+                            Text(
+                                text = "+",
+                                fontWeight = FontWeight.Normal,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 18.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
             }
@@ -5268,6 +5661,46 @@ fun CategoriesListScreen(viewModel: MainViewModel) {
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                if (categories.isEmpty() && uncategorizedProducts.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Category,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = "Chưa có danh mục nào".t(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Nhấn \"Thêm danh mục mới\" ở trên để tạo danh mục đầu tiên.".t(),
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+
                 items(categories) { cat ->
                     val count = products.filter { it.categoryId == cat.id }.size
                     val isExpanded = expandedCategoryIds.contains(cat.id)
@@ -5850,7 +6283,10 @@ fun CustomersListScreen(viewModel: MainViewModel) {
             AnimatedVisibility(visible = listState.firstVisibleItemIndex == 0) {
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = { searchQuery = it.capitalizeWords() },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words
+                    ),
                     label = { Text("Tìm kiếm khách hàng...".t()) },
                     placeholder = { Text("Nhập tên khách hàng...".t()) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
@@ -6037,7 +6473,10 @@ fun CustomersListScreen(viewModel: MainViewModel) {
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = renameNewName,
-                        onValueChange = { renameNewName = it },
+                        onValueChange = { renameNewName = it.capitalizeWords() },
+                        keyboardOptions = KeyboardOptions(
+                            capitalization = KeyboardCapitalization.Words
+                        ),
                         label = { Text("Tên khách hàng mới".t()) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().testTag("rename_customer_input")

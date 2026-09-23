@@ -19,6 +19,8 @@ import org.w3c.dom.Element
 import org.w3c.dom.Node
 import javax.xml.parsers.DocumentBuilderFactory
 import java.io.ByteArrayInputStream
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.geometry.Rect
 
 enum class MainTab {
     BAN_HANG, HOA_DON, QUAN_LY, CAI_DAT
@@ -73,6 +75,75 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var currentSubScreen = MutableStateFlow<SubScreen?>(null)
         private set
 
+    // First-launch onboarding tour (only displayed on the very first install/launch)
+    var showOnboardingTour = MutableStateFlow(!prefs.getBoolean("has_seen_onboarding_tour", false))
+        private set
+
+    var onboardingStepIndex = MutableStateFlow(0)
+        private set
+
+    // Coordinates of targets on screen for pointing tooltip ("tin nổi lên chỉ vào phần cần giới thiệu")
+    val onboardingTargetBounds = mutableStateMapOf<String, Rect>()
+
+    fun registerOnboardingTarget(key: String, bounds: Rect) {
+        onboardingTargetBounds[key] = bounds
+    }
+
+    fun syncTabForOnboardingStep(step: Int) {
+        when (step) {
+            0 -> {
+                selectTab(MainTab.BAN_HANG)
+                selectSubScreen(null)
+            }
+            1 -> {
+                selectTab(MainTab.HOA_DON)
+                selectSubScreen(null)
+            }
+            in 2..6 -> {
+                selectTab(MainTab.QUAN_LY)
+                selectSubScreen(null)
+            }
+            in 7..8 -> {
+                selectTab(MainTab.CAI_DAT)
+                selectSubScreen(null)
+            }
+        }
+    }
+
+    fun nextOnboardingStep() {
+        val next = onboardingStepIndex.value + 1
+        if (next < 9) {
+            onboardingStepIndex.value = next
+            syncTabForOnboardingStep(next)
+        } else {
+            completeOnboardingTour()
+        }
+    }
+
+    fun previousOnboardingStep() {
+        val prev = onboardingStepIndex.value - 1
+        if (prev >= 0) {
+            onboardingStepIndex.value = prev
+            syncTabForOnboardingStep(prev)
+        } else {
+            completeOnboardingTour()
+        }
+    }
+
+    fun completeOnboardingTour() {
+        prefs.edit().putBoolean("has_seen_onboarding_tour", true).apply()
+        showOnboardingTour.value = false
+        onboardingStepIndex.value = 0
+        selectTab(MainTab.BAN_HANG)
+        selectSubScreen(null)
+    }
+
+    fun restartOnboardingTour() {
+        onboardingStepIndex.value = 0
+        syncTabForOnboardingStep(0)
+        showOnboardingTour.value = true
+    }
+
     // Preference States (Loaded from SharedPreferences)
     var isGridView = MutableStateFlow(prefs.getBoolean("is_grid_view", false))
         private set
@@ -83,8 +154,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var currentLanguage = MutableStateFlow(prefs.getString("current_language", "Tiếng Việt") ?: "Tiếng Việt")
         private set
 
-    // Auto-saved POS store name
-    var storeName = MutableStateFlow(prefs.getString("saved_store_name", "Cửa hàng của Cường") ?: "Cửa hàng của Cường")
+    // Auto-saved POS store name (Starts empty for new installations)
+    var storeName = MutableStateFlow(prefs.getString("saved_store_name", "") ?: "")
         private set
 
     // Active POS Cart
@@ -141,32 +212,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.syncAllSuppliersToProducts()
         }
 
-        // Build initial category data if DB empty, only if not yet initialized
+        // No pre-seeded categories on new installation - user starts with zero categories
         val hasInit = prefs.getBoolean("has_initialized_dummy_data", false)
         if (!hasInit) {
+            prefs.edit().putBoolean("has_initialized_dummy_data", true).apply()
+        }
+
+        // Clean up legacy default store name if it matches the hardcoded preset
+        if (prefs.getString("saved_store_name", "") == "Cửa hàng của Cường") {
+            prefs.edit().putString("saved_store_name", "").apply()
+            storeName.value = ""
+        }
+        val hasCleanedMockCategories = prefs.getBoolean("has_cleaned_initial_mock_categories", false)
+        if (!hasCleanedMockCategories) {
             viewModelScope.launch {
-                repository.allCategories.first().let { list ->
-                    if (list.isEmpty()) {
-                        repository.insertCategory(Category(name = "Điện tử"))
-                        repository.insertCategory(Category(name = "Thực phẩm"))
-                        repository.insertCategory(Category(name = "Gia dụng"))
-                        repository.insertCategory(Category(name = "Khác"))
+                val mockCategoryNames = setOf("Điện tử", "Thực phẩm", "Gia dụng", "Khác")
+                repository.allCategories.first().filter { it.name in mockCategoryNames }.forEach { cat ->
+                    // Un-link any tied products first
+                    repository.allProducts.first().filter { it.categoryId == cat.id }.forEach { prod ->
+                        repository.updateProduct(prod.copy(categoryId = null))
                     }
+                    repository.deleteCategory(cat)
                 }
-                // Add some initial mock products for better first-launch aesthetics
-                repository.allProducts.first().let { pList ->
-                    if (pList.isEmpty()) {
-                        val cats = repository.allCategories.first()
-                        val cat1 = cats.getOrNull(0)?.id ?: 0
-                        val cat2 = cats.getOrNull(1)?.id ?: 0
-                        val cat3 = cats.getOrNull(2)?.id ?: 0
-                        repository.insertProduct(Product(name = "Điện thoại Samsung S24", categoryId = cat1, importPrice = 15000000.0, sellPrice = 21000000.0, trackInventory = true, stockQuantity = 12))
-                        repository.insertProduct(Product(name = "Sữa đặc Ông Thọ 380g", categoryId = cat2, importPrice = 18000.0, sellPrice = 24000.0, trackInventory = true, stockQuantity = 150))
-                        repository.insertProduct(Product(name = "Chảo chống dính Sunhouse", categoryId = cat3, importPrice = 120000.0, sellPrice = 190000.0, trackInventory = true, stockQuantity = 45))
-                        repository.insertProduct(Product(name = "Bánh Karo sợi gà", categoryId = cat2, importPrice = 32000.0, sellPrice = 45000.0, trackInventory = true, stockQuantity = 80))
-                    }
+                prefs.edit().putBoolean("has_cleaned_initial_mock_categories", true).apply()
+            }
+        }
+
+        // Clean up any default mock products that might have been seeded on earlier installs
+        val hasCleanedMockProducts = prefs.getBoolean("has_cleaned_initial_mock_products", false)
+        if (!hasCleanedMockProducts) {
+            viewModelScope.launch {
+                val mockNames = setOf(
+                    "Điện thoại Samsung S24",
+                    "Sữa đặc Ông Thọ 380g",
+                    "Chảo chống dính Sunhouse",
+                    "Bánh Karo sợi gà"
+                )
+                repository.allProducts.first().filter { it.name in mockNames }.forEach { prod ->
+                    repository.deleteProduct(prod)
                 }
-                prefs.edit().putBoolean("has_initialized_dummy_data", true).apply()
+                prefs.edit().putBoolean("has_cleaned_initial_mock_products", true).apply()
             }
         }
     }
@@ -188,7 +273,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 "is_grid_view",
                 "current_language",
                 "saved_store_name",
-                "has_initialized_dummy_data"
+                "has_initialized_dummy_data",
+                "has_cleaned_initial_mock_products",
+                "has_cleaned_initial_mock_categories",
+                "has_seen_onboarding_tour"
             )
             prefs.all.keys.forEach { key ->
                 if (key !in keysToKeep) {
