@@ -42,6 +42,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -276,7 +278,48 @@ fun formatDateHeader(timestamp: Long): String {
     val sdf = SimpleDateFormat("dd MM, yyyy", Locale("vi", "VN"))
     val parts = sdf.format(Date(timestamp)).split(" ")
     return "${parts[0]} ${"Tháng".t()} ${parts[1]}"
-    return sdf.format(Date(timestamp))
+}
+
+@Composable
+fun AutoResizeSingleLineText(
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
+    fontWeight: FontWeight? = null,
+    targetFontSize: TextUnit = 20.sp,
+    minFontSize: TextUnit = 9.sp,
+    textAlign: TextAlign? = null
+) {
+    var resizedFontSize by remember(text, targetFontSize) { mutableStateOf(targetFontSize) }
+    var readyToDraw by remember(text, targetFontSize) { mutableStateOf(false) }
+
+    Text(
+        text = text,
+        modifier = modifier.drawWithContent {
+            if (readyToDraw) {
+                drawContent()
+            }
+        },
+        color = color,
+        fontWeight = fontWeight,
+        fontSize = resizedFontSize,
+        textAlign = textAlign,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { textLayoutResult ->
+            if (textLayoutResult.didOverflowWidth && resizedFontSize > minFontSize) {
+                val nextSize = (resizedFontSize.value - 1f).coerceAtLeast(minFontSize.value).sp
+                if (nextSize < resizedFontSize) {
+                    resizedFontSize = nextSize
+                } else {
+                    readyToDraw = true
+                }
+            } else {
+                readyToDraw = true
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -2762,7 +2805,7 @@ fun SettingsTab(viewModel: MainViewModel) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Giới thiệu".t(), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Phiên bản: 1.3.9".t(), fontSize = 13.sp)
+                    Text("Phiên bản: ".t() + com.example.BuildConfig.VERSION_NAME, fontSize = 13.sp)
                     Text("Người sáng lập: Cường lâm".t(), fontSize = 13.sp)
                     Text("Liên hệ (Zalo): ".t() + "0964935879", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
@@ -3074,24 +3117,31 @@ fun CartScreen(viewModel: MainViewModel) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
+                                Column(modifier = Modifier.weight(1f, fill = false)) {
                                     Text(
                                         text = "Tổng cộng tiền hàng:".t(),
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp
+                                        fontSize = 16.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
-                                    val totalItems = cart.sumOf { it.quantity }
                                     Text(
-                                        text = "Tổng số lượng: %d mặt hàng (%d sản phẩm)".t().format(cart.size, totalItems),
+                                        text = "Tổng số lượng: %d mặt hàng".t().format(cart.size),
                                         fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                Text(
+                                Spacer(modifier = Modifier.width(8.dp))
+                                AutoResizeSingleLineText(
                                     text = formatCurrency(cart.sumOf { it.sellPrice * it.quantity }),
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 20.sp,
-                                    color = MaterialTheme.colorScheme.primary
+                                    targetFontSize = 20.sp,
+                                    minFontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.weight(1f, fill = false)
                                 )
                             }
 

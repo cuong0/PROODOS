@@ -14,8 +14,8 @@ android {
     applicationId = "com.aistudio.proodos.faamwd"
     minSdk = 24
     targetSdk = 36
-    versionCode = 3
-    versionName = "3.0"
+    versionCode = 6
+    versionName = "1.3.91"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
