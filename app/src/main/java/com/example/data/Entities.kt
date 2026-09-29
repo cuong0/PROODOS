@@ -62,7 +62,8 @@ data class ImportOrder(
     val timestamp: Long = System.currentTimeMillis(),
     val supplierName: String,
     val totalAmount: Double,
-    val isDraft: Boolean = false
+    val isDraft: Boolean = false,
+    val invoiceImageUri: String? = null
 )
 
 @Entity(tableName = "import_order_items")

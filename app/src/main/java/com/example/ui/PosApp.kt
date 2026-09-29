@@ -2,6 +2,7 @@ package com.example.ui
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.ContentScale
 
 import android.Manifest
 import android.content.Context
@@ -11,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.FileProvider
 import androidx.compose.animation.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -3099,7 +3101,13 @@ fun CartScreen(viewModel: MainViewModel) {
                                     }
                                 },
                                 onPriceChange = { p -> viewModel.updateCartPrice(cartItem.product.id, p) },
-                                onDelete = { itemToDelete = cartItem }
+                                onDelete = { itemToDelete = cartItem },
+                                onDirectDelete = {
+                                    if (swipedItemId == cartItem.product.id) {
+                                        swipedItemId = null
+                                    }
+                                    viewModel.removeFromCart(cartItem.product.id)
+                                }
                             )
                         }
                     }
@@ -3329,7 +3337,8 @@ fun CartItemRow(
     onResetSwipe: () -> Unit,
     onQuantityChange: (Int) -> Unit,
     onPriceChange: (Double) -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onDirectDelete: () -> Unit
 ) {
     var priceEditor by remember(cartItem.sellPrice) { mutableStateOf(cartItem.sellPrice.toInt().toString()) }
     var qtyEditor by remember(cartItem.quantity) { mutableStateOf(cartItem.quantity.toString()) }
@@ -3344,11 +3353,16 @@ fun CartItemRow(
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
-    val maxSwipePx = with(density) { 80.dp.toPx() }
+    val revealDeletePx = with(density) { 80.dp.toPx() }
+    val maxDragLimitPx = with(density) { 220.dp.toPx() }
     val offsetX = remember { Animatable(0f) }
+    
+    val currentIsSwiped by rememberUpdatedState(isSwiped)
+    val currentOnDirectDelete by rememberUpdatedState(onDirectDelete)
+    val currentOnSwipeChange by rememberUpdatedState(onSwipeChange)
 
     LaunchedEffect(isSwiped) {
-        val target = if (isSwiped) -maxSwipePx else 0f
+        val target = if (isSwiped) -revealDeletePx else 0f
         if (offsetX.value != target) {
             offsetX.animateTo(
                 targetValue = target,
@@ -3360,10 +3374,73 @@ fun CartItemRow(
         }
     }
 
+    var dragAccumulatedX by remember { mutableStateOf(0f) }
+    var startedInSwipedState by remember { mutableStateOf(false) }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .pointerInput(cartItem.product.id, isSwiped) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        startedInSwipedState = currentIsSwiped
+                        dragAccumulatedX = 0f
+                    },
+                    onDragEnd = {
+                        coroutineScope.launch {
+                            val currentOffset = offsetX.value
+                            val threshold15dp = with(density) { 15.dp.toPx() }
+                            val threshold20dp = with(density) { 20.dp.toPx() }
+
+                            if (startedInSwipedState) {
+                                // Lần kéo thứ 2: Đang mở nút xóa và vuốt tiếp sang trái -> XÓA TRỰC TIẾP
+                                if (dragAccumulatedX < -threshold15dp || currentOffset < -revealDeletePx - threshold15dp) {
+                                    currentOnSwipeChange(false)
+                                    offsetX.animateTo(0f)
+                                    currentOnDirectDelete()
+                                } else if (dragAccumulatedX > threshold20dp || currentOffset > -revealDeletePx * 0.5f) {
+                                    // Vuốt sang phải -> ĐÓNG LẠI
+                                    currentOnSwipeChange(false)
+                                    offsetX.animateTo(0f)
+                                } else {
+                                    // Giữ nguyên trạng thái mở
+                                    offsetX.animateTo(-revealDeletePx)
+                                }
+                            } else {
+                                // Lần kéo thứ 1: Mở nút xóa
+                                if (currentOffset <= -revealDeletePx * 0.35f || dragAccumulatedX < -revealDeletePx * 0.35f) {
+                                    currentOnSwipeChange(true)
+                                    offsetX.animateTo(
+                                        -revealDeletePx,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                        )
+                                    )
+                                } else {
+                                    currentOnSwipeChange(false)
+                                    offsetX.animateTo(0f)
+                                }
+                            }
+                        }
+                    },
+                    onDragCancel = {
+                        coroutineScope.launch {
+                            val target = if (currentIsSwiped) -revealDeletePx else 0f
+                            offsetX.animateTo(target)
+                        }
+                    },
+                    onHorizontalDrag = { _, dragAmount ->
+                        dragAccumulatedX += dragAmount
+                        coroutineScope.launch {
+                            val limit = if (startedInSwipedState) -maxDragLimitPx else -revealDeletePx - with(density) { 15.dp.toPx() }
+                            val newOffset = (offsetX.value + dragAmount).coerceIn(limit, 0f)
+                            offsetX.snapTo(newOffset)
+                        }
+                    }
+                )
+            }
     ) {
         // Red background with White Trash icon on the right, only visible when swiped/dragging
         if (offsetX.value < 0f || isSwiped) {
@@ -3406,54 +3483,11 @@ fun CartItemRow(
             }
         }
 
-        // Foreground item card with horizontal drag gesture (Solid opaque surface)
+        // Foreground item card
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .pointerInput(cartItem.product.id) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            // Any drag starts
-                        },
-                        onDragEnd = {
-                            coroutineScope.launch {
-                                // If dragged left by more than 35% of maxSwipe, reveal delete button
-                                if (offsetX.value < -maxSwipePx * 0.35f) {
-                                    onSwipeChange(true)
-                                    offsetX.animateTo(
-                                        -maxSwipePx,
-                                        animationSpec = androidx.compose.animation.core.spring(
-                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
-                                        )
-                                    )
-                                } else {
-                                    onSwipeChange(false)
-                                    offsetX.animateTo(
-                                        0f,
-                                        animationSpec = androidx.compose.animation.core.spring(
-                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
-                                        )
-                                    )
-                                }
-                            }
-                        },
-                        onDragCancel = {
-                            coroutineScope.launch {
-                                val target = if (isSwiped) -maxSwipePx else 0f
-                                offsetX.animateTo(target)
-                            }
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            coroutineScope.launch {
-                                val newOffset = (offsetX.value + dragAmount).coerceIn(-maxSwipePx, 0f)
-                                offsetX.snapTo(newOffset)
-                            }
-                        }
-                    )
-                }
                 .testTag("cart_item_${cartItem.product.id}"),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
@@ -3479,18 +3513,24 @@ fun CartItemRow(
                         )
                     }
 
-                    IconButton(
-                        onClick = { onDelete() },
-                        modifier = Modifier
-                            .size(32.dp)
-                            .testTag("delete_btn_${cartItem.product.id}")
+                    AnimatedVisibility(
+                        visible = !isSwiped && offsetX.value == 0f,
+                        enter = fadeIn() + scaleIn(),
+                        exit = fadeOut() + scaleOut()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Xóa mặt hàng".t(),
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        IconButton(
+                            onClick = { onDelete() },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .testTag("delete_btn_${cartItem.product.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Xóa mặt hàng".t(),
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
 
@@ -3821,6 +3861,14 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
     var itemToEdit by remember { mutableStateOf<InvoiceItem?>(null) }
     var itemToDelete by remember { mutableStateOf<InvoiceItem?>(null) }
 
+    var swipedItemId by remember { mutableStateOf<Int?>(null) }
+    val scrollState = rememberScrollState()
+    LaunchedEffect(scrollState.isScrollInProgress) {
+        if (scrollState.isScrollInProgress && swipedItemId != null) {
+            swipedItemId = null
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -3904,110 +3952,177 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                 android.Manifest.permission.WRITE_CALENDAR
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingVal)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                // Receipt Header
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("Mã hóa đơn: ".t() + "#${invoice.id}", fontWeight = FontWeight.Bold)
-                            Text(formatDate(invoice.timestamp), fontSize = 12.sp)
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Khách hàng: ".t() + (invoice.customerName ?: invoice.storeName),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                val textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Danh sách mặt hàng:".t(), style = textStyle)
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = "TM",
-                            style = textStyle.copy(
-                                fontWeight = if (paymentMethod == "TM") FontWeight.Bold else FontWeight.Normal,
-                                color = if (paymentMethod == "TM") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            ),
-                            modifier = Modifier.clickable {
-                                paymentMethod = "TM"
-                                prefs.edit().putString(paymentMethodKey, "TM").apply()
+                    .pointerInput(swipedItemId) {
+                        detectTapGestures(
+                            onPress = {
+                                if (swipedItemId != null) {
+                                    swipedItemId = null
+                                }
+                            },
+                            onTap = {
+                                if (swipedItemId != null) {
+                                    swipedItemId = null
+                                }
                             }
                         )
-                        Box(
-                            modifier = Modifier
-                                .width(34.dp)
-                                .height(18.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(
-                                    if (paymentMethod == "CK") MaterialTheme.colorScheme.primary 
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable {
-                                    val next = if (paymentMethod == "TM") "CK" else "TM"
-                                    paymentMethod = next
-                                    prefs.edit().putString(paymentMethodKey, next).apply()
+                    }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .verticalScroll(scrollState)
+                        .pointerInput(swipedItemId) {
+                            detectTapGestures(
+                                onPress = {
+                                    if (swipedItemId != null) {
+                                        swipedItemId = null
+                                    }
+                                },
+                                onTap = {
+                                    if (swipedItemId != null) {
+                                        swipedItemId = null
+                                    }
                                 }
-                                .padding(2.dp),
-                            contentAlignment = if (paymentMethod == "CK") Alignment.CenterEnd else Alignment.CenterStart
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.onPrimary)
                             )
                         }
-                        Text(
-                            text = "CK",
-                            style = textStyle.copy(
-                                fontWeight = if (paymentMethod == "CK") FontWeight.Bold else FontWeight.Normal,
-                                color = if (paymentMethod == "CK") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            ),
-                            modifier = Modifier.clickable {
-                                paymentMethod = "CK"
-                                prefs.edit().putString(paymentMethodKey, "CK").apply()
-                            }
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items.forEach { item ->
-                        SwipeableInvoiceItemCard(
-                            item = item,
-                            onEdit = { itemToEdit = item },
-                            onDelete = { itemToDelete = item }
-                        )
+                    // Receipt Header
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (swipedItemId != null) {
+                                    swipedItemId = null
+                                }
+                            },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Mã hóa đơn: ".t() + "#${invoice.id}", fontWeight = FontWeight.Bold)
+                                Text(formatDate(invoice.timestamp), fontSize = 12.sp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Khách hàng: ".t() + (invoice.customerName ?: invoice.storeName),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
-                }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    val textStyle = LocalTextStyle.current.copy(fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Danh sách mặt hàng:".t(), style = textStyle)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "TM",
+                                style = textStyle.copy(
+                                    fontWeight = if (paymentMethod == "TM") FontWeight.Bold else FontWeight.Normal,
+                                    color = if (paymentMethod == "TM") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                ),
+                                modifier = Modifier.clickable {
+                                    if (swipedItemId != null) swipedItemId = null
+                                    paymentMethod = "TM"
+                                    prefs.edit().putString(paymentMethodKey, "TM").apply()
+                                }
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .width(34.dp)
+                                    .height(18.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(
+                                        if (paymentMethod == "CK") MaterialTheme.colorScheme.primary 
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                    .clickable {
+                                        if (swipedItemId != null) swipedItemId = null
+                                        val next = if (paymentMethod == "TM") "CK" else "TM"
+                                        paymentMethod = next
+                                        prefs.edit().putString(paymentMethodKey, next).apply()
+                                    }
+                                    .padding(2.dp),
+                                contentAlignment = if (paymentMethod == "CK") Alignment.CenterEnd else Alignment.CenterStart
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.onPrimary)
+                                )
+                            }
+                            Text(
+                                text = "CK",
+                                style = textStyle.copy(
+                                    fontWeight = if (paymentMethod == "CK") FontWeight.Bold else FontWeight.Normal,
+                                    color = if (paymentMethod == "CK") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                ),
+                                modifier = Modifier.clickable {
+                                    if (swipedItemId != null) swipedItemId = null
+                                    paymentMethod = "CK"
+                                    prefs.edit().putString(paymentMethodKey, "CK").apply()
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items.forEach { item ->
+                            SwipeableInvoiceItemCard(
+                                item = item,
+                                isSwiped = swipedItemId == item.id,
+                                hasAnySwiped = swipedItemId != null,
+                                onSwipeChange = { swiped ->
+                                    if (swiped) {
+                                        swipedItemId = item.id
+                                    } else if (swipedItemId == item.id) {
+                                        swipedItemId = null
+                                    }
+                                },
+                                onResetSwipe = {
+                                    if (swipedItemId == item.id) {
+                                        swipedItemId = null
+                                    }
+                                },
+                                onResetAllSwipes = {
+                                    swipedItemId = null
+                                },
+                                onEdit = {
+                                    swipedItemId = null
+                                    itemToEdit = item
+                                },
+                                onDelete = {
+                                    swipedItemId = null
+                                    itemToDelete = item
+                                }
+                            )
+                        }
+                    }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -4402,6 +4517,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                     Text("HOÀN TIỀN & HỦY HÓA ĐƠN".t(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
                 }
             }
+        }
 
             if (showRefundConfirm) {
                 AlertDialog(
@@ -4602,6 +4718,11 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
 @Composable
 fun SwipeableInvoiceItemCard(
     item: InvoiceItem,
+    isSwiped: Boolean,
+    hasAnySwiped: Boolean = false,
+    onSwipeChange: (Boolean) -> Unit,
+    onResetSwipe: () -> Unit,
+    onResetAllSwipes: () -> Unit = onResetSwipe,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -4611,6 +4732,25 @@ fun SwipeableInvoiceItemCard(
     val maxSwipeOffset = 0f
 
     val swipeOffset = remember { Animatable(0f) }
+
+    val currentIsSwiped by rememberUpdatedState(isSwiped)
+    val currentHasAnySwiped by rememberUpdatedState(hasAnySwiped)
+    val currentOnSwipeChange by rememberUpdatedState(onSwipeChange)
+    val currentOnResetSwipe by rememberUpdatedState(onResetSwipe)
+    val currentOnResetAllSwipes by rememberUpdatedState(onResetAllSwipes)
+
+    LaunchedEffect(isSwiped) {
+        val target = if (isSwiped) minSwipeOffset else 0f
+        if (swipeOffset.value != target) {
+            swipeOffset.animateTo(
+                targetValue = target,
+                animationSpec = androidx.compose.animation.core.spring(
+                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                    stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                )
+            )
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -4627,7 +4767,10 @@ fun SwipeableInvoiceItemCard(
         ) {
             IconButton(
                 onClick = {
-                    coroutineScope.launch { swipeOffset.animateTo(0f) }
+                    coroutineScope.launch {
+                        swipeOffset.animateTo(0f)
+                        currentOnResetSwipe()
+                    }
                     onEdit()
                 },
                 modifier = Modifier
@@ -4645,7 +4788,10 @@ fun SwipeableInvoiceItemCard(
 
             IconButton(
                 onClick = {
-                    coroutineScope.launch { swipeOffset.animateTo(0f) }
+                    coroutineScope.launch {
+                        swipeOffset.animateTo(0f)
+                        currentOnResetSwipe()
+                    }
                     onDelete()
                 },
                 modifier = Modifier
@@ -4666,8 +4812,13 @@ fun SwipeableInvoiceItemCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(swipeOffset.value.roundToInt(), 0) }
-                .pointerInput(Unit) {
+                .pointerInput(item.id, isSwiped, hasAnySwiped) {
                     detectHorizontalDragGestures(
+                        onDragStart = {
+                            if (currentHasAnySwiped && !currentIsSwiped) {
+                                currentOnResetAllSwipes()
+                            }
+                        },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
                             coroutineScope.launch {
@@ -4679,13 +4830,41 @@ fun SwipeableInvoiceItemCard(
                             coroutineScope.launch {
                                 val halfOffset = minSwipeOffset / 2
                                 if (swipeOffset.value < halfOffset) {
-                                    swipeOffset.animateTo(minSwipeOffset)
+                                    currentOnSwipeChange(true)
+                                    swipeOffset.animateTo(
+                                        minSwipeOffset,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                        )
+                                    )
                                 } else {
-                                    swipeOffset.animateTo(0f)
+                                    currentOnSwipeChange(false)
+                                    swipeOffset.animateTo(
+                                        0f,
+                                        animationSpec = androidx.compose.animation.core.spring(
+                                            dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                                            stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                                        )
+                                    )
                                 }
+                            }
+                        },
+                        onDragCancel = {
+                            coroutineScope.launch {
+                                val target = if (currentIsSwiped) minSwipeOffset else 0f
+                                swipeOffset.animateTo(target)
                             }
                         }
                     )
+                }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (currentHasAnySwiped) {
+                        currentOnResetAllSwipes()
+                    }
                 },
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(8.dp),
@@ -7599,6 +7778,7 @@ fun ImportManagementScreen(viewModel: MainViewModel) {
     var expandedOrderId by remember { mutableStateOf<Int?>(null) }
     var editingOrder by remember { mutableStateOf<ImportOrderWithItems?>(null) }
     var deletingOrder by remember { mutableStateOf<ImportOrderWithItems?>(null) }
+    var viewingInvoiceImageUri by remember { mutableStateOf<String?>(null) }
     
     var showReportPanel by remember { mutableStateOf(false) }
     var fromDateMillis by remember { 
@@ -7679,7 +7859,9 @@ fun ImportManagementScreen(viewModel: MainViewModel) {
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showCreateOrderDialog = true },
-                modifier = Modifier.testTag("add_import_order_fab"),
+                modifier = Modifier
+                    .navigationBarsPadding()
+                    .testTag("add_import_order_fab"),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
@@ -7691,6 +7873,8 @@ fun ImportManagementScreen(viewModel: MainViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingVal)
+                .navigationBarsPadding()
+                .padding(bottom = 10.dp)
         ) {
             if (showReportPanel) {
                 HorizontalDivider(
@@ -8019,7 +8203,7 @@ fun ImportManagementScreen(viewModel: MainViewModel) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 80.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(displayOrders, key = { it.importOrder.id }) { orderWithItems ->
@@ -8228,6 +8412,20 @@ fun ImportManagementScreen(viewModel: MainViewModel) {
                                         horizontalArrangement = Arrangement.End,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        if (order.invoiceImageUri != null) {
+                                            TextButton(
+                                                onClick = { viewingInvoiceImageUri = order.invoiceImageUri },
+                                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(34.dp)
+                                            ) {
+                                                Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("HÓA ĐƠN GỐC".t(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                        }
+
                                         if (order.isDraft) {
                                             Button(
                                                 onClick = {
@@ -8316,6 +8514,13 @@ fun ImportManagementScreen(viewModel: MainViewModel) {
         )
     }
 
+    if (viewingInvoiceImageUri != null) {
+        InvoiceImageViewerDialog(
+            imageUri = viewingInvoiceImageUri!!,
+            onDismiss = { viewingInvoiceImageUri = null }
+        )
+    }
+
     if (deletingOrder != null) {
         val orderWithItems = deletingOrder!!
         AlertDialog(
@@ -8397,6 +8602,7 @@ fun CreateImportOrderDialog(
     val finalTaiKhoan = tongTaiKhoan + manualAccountAdjustment
 
     var supplierName by remember { mutableStateOf("") }
+    var invoiceImageUri by remember { mutableStateOf<String?>(null) }
     var selectedItems by remember { mutableStateOf(emptyList<ImportOrderItemTemp>()) }
 
     var showAddItemDialog by remember { mutableStateOf(false) }
@@ -8439,6 +8645,7 @@ fun CreateImportOrderDialog(
             items = selectedItems,
             cashPaid = cashPaid,
             transferPaid = transferPaid,
+            invoiceImageUri = invoiceImageUri,
             onComplete = onSuccess
         )
     }
@@ -8483,6 +8690,12 @@ fun CreateImportOrderDialog(
                             }) {
                                 Icon(Icons.Default.Close, contentDescription = "Đóng".t())
                             }
+                        },
+                        actions = {
+                            OriginalInvoiceTopBarAction(
+                                invoiceImageUri = invoiceImageUri,
+                                onInvoiceImageChanged = { invoiceImageUri = it }
+                            )
                         }
                     )
                 }
@@ -8492,7 +8705,8 @@ fun CreateImportOrderDialog(
                         .fillMaxSize()
                         .padding(innerPadding)
                         .imePadding()
-                        .padding(16.dp)
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 48.dp)
                         .pointerInput(Unit) {
                             detectTapGestures(onTap = { focusManager.clearFocus() })
                         }
@@ -8919,6 +9133,7 @@ fun CreateImportOrderDialog(
                             cashPaid = cashPaid,
                             transferPaid = transferPaid,
                             isDraft = true,
+                            invoiceImageUri = invoiceImageUri,
                             onComplete = {
                                 onDismiss()
                                 Toast.makeText(context, "Đã lưu nháp đơn nhập hàng!".t(), Toast.LENGTH_SHORT).show()
@@ -9525,6 +9740,7 @@ fun EditImportOrderDialog(
 ) {
     val focusManager = LocalFocusManager.current
     var supplierName by remember { mutableStateOf(orderWithItems.importOrder.supplierName) }
+    var invoiceImageUri by remember { mutableStateOf(orderWithItems.importOrder.invoiceImageUri) }
     var selectedItems by remember { mutableStateOf(orderWithItems.items.map {
         ImportOrderItemTemp(
             productId = it.productId,
@@ -9579,6 +9795,7 @@ fun EditImportOrderDialog(
                                         supplierName = supplier,
                                         items = selectedItems,
                                         isDraft = orderWithItems.importOrder.isDraft,
+                                        invoiceImageUri = invoiceImageUri,
                                         onComplete = onSuccess
                                     )
                                 },
@@ -9596,13 +9813,25 @@ fun EditImportOrderDialog(
                     )
                 },
                 floatingActionButton = {
-                    FloatingActionButton(
-                        onClick = { showAddItemDialog = true },
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = MaterialTheme.colorScheme.onSecondary,
-                        modifier = Modifier.testTag("edit_add_item_to_order_fab")
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Thêm mặt hàng".t())
+                        // Thumbnail if invoice exists, or invoice icon if not
+                        OriginalInvoiceFloatingButton(
+                            invoiceImageUri = invoiceImageUri,
+                            onInvoiceImageChanged = { invoiceImageUri = it }
+                        )
+
+                        // Plus button to add items to import order
+                        FloatingActionButton(
+                            onClick = { showAddItemDialog = true },
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary,
+                            modifier = Modifier.testTag("edit_add_item_to_order_fab")
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Thêm mặt hàng".t())
+                        }
                     }
                 },
                 bottomBar = {
@@ -10728,3 +10957,1016 @@ fun CustomerInvoiceCard(invoiceWithItems: InvoiceWithItems, searchQuery: String)
         }
     }
 }
+
+@Composable
+fun OriginalInvoiceFloatingButton(
+    invoiceImageUri: String?,
+    onInvoiceImageChanged: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var showSourceChoiceDialog by remember { mutableStateOf(false) }
+    var showActionMenuDialog by remember { mutableStateOf(false) }
+    var pendingPreviewUri by remember { mutableStateOf<Uri?>(null) }
+    var viewingFullScreenUri by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var cameraTempUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Gallery launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            pendingPreviewUri = uri
+        }
+    }
+
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && cameraTempUri != null) {
+            pendingPreviewUri = cameraTempUri
+        }
+    }
+
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            try {
+                val tempFile = File(context.cacheDir, "invoice_cam_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                cameraTempUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Lỗi máy ảnh: " + e.localizedMessage, Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Vui lòng cấp quyền máy ảnh để chụp ảnh hóa đơn".t(), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val startCamera = {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            try {
+                val tempFile = File(context.cacheDir, "invoice_cam_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                cameraTempUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Lỗi máy ảnh: " + e.localizedMessage, Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    val primaryGreen = MaterialTheme.colorScheme.primary
+
+    if (invoiceImageUri != null) {
+        // Thumbnail Floating Action Button
+        Surface(
+            onClick = { showActionMenuDialog = true },
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            shadowElevation = 6.dp,
+            border = BorderStroke(2.dp, primaryGreen),
+            modifier = modifier
+                .size(56.dp)
+                .testTag("fab_invoice_thumbnail_btn")
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = invoiceImageUri,
+                    contentDescription = "Hóa đơn gốc".t(),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                // Green checkmark badge in corner
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .align(Alignment.BottomEnd)
+                        .background(primaryGreen, RoundedCornerShape(topStart = 8.dp))
+                        .padding(2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(11.dp)
+                    )
+                }
+            }
+        }
+    } else {
+        // Floating Action Button with invoice icon for orders without invoice image
+        FloatingActionButton(
+            onClick = { showSourceChoiceDialog = true },
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = primaryGreen,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp),
+            shape = RoundedCornerShape(16.dp),
+            modifier = modifier
+                .size(56.dp)
+                .border(1.5.dp, primaryGreen, RoundedCornerShape(16.dp))
+                .testTag("fab_save_invoice_icon_btn")
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Default.ReceiptLong,
+                    contentDescription = "Lưu hóa đơn gốc".t(),
+                    tint = primaryGreen,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+    }
+
+    if (showActionMenuDialog && invoiceImageUri != null) {
+        Dialog(onDismissRequest = { showActionMenuDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth(0.9f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(primaryGreen.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Hóa đơn gốc".t(), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = primaryGreen)
+                            Text("Đã đính kèm ảnh hóa đơn".t(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Option 1: Xem ảnh
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showActionMenuDialog = false
+                                viewingFullScreenUri = invoiceImageUri
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = primaryGreen.copy(alpha = 0.08f)),
+                        border = BorderStroke(1.dp, primaryGreen.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Visibility, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Xem hóa đơn gốc".t(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Option 2: Đổi ảnh khác
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showActionMenuDialog = false
+                                showSourceChoiceDialog = true
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Đổi ảnh hóa đơn".t(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Option 3: Xóa ảnh
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showActionMenuDialog = false
+                                showDeleteConfirmDialog = true
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Xóa ảnh hóa đơn".t(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    TextButton(
+                        onClick = { showActionMenuDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Đóng".t(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSourceChoiceDialog) {
+        InvoiceSourceChoiceDialog(
+            onDismiss = { showSourceChoiceDialog = false },
+            onSelectCamera = {
+                showSourceChoiceDialog = false
+                startCamera()
+            },
+            onSelectGallery = {
+                showSourceChoiceDialog = false
+                galleryLauncher.launch("image/*")
+            }
+        )
+    }
+
+    if (pendingPreviewUri != null) {
+        InvoiceImagePreviewAndSaveDialog(
+            imageUri = pendingPreviewUri!!,
+            onDismiss = { pendingPreviewUri = null },
+            onSave = {
+                onInvoiceImageChanged(pendingPreviewUri.toString())
+                pendingPreviewUri = null
+                Toast.makeText(context, "Đã lưu hóa đơn gốc thành công!".t(), Toast.LENGTH_SHORT).show()
+            },
+            onRetake = {
+                pendingPreviewUri = null
+                showSourceChoiceDialog = true
+            }
+        )
+    }
+
+    if (viewingFullScreenUri != null) {
+        InvoiceImageViewerDialog(
+            imageUri = viewingFullScreenUri!!,
+            onDismiss = { viewingFullScreenUri = null }
+        )
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Gỡ bỏ hóa đơn gốc".t(), fontWeight = FontWeight.Bold) },
+            text = { Text("Bạn có chắc chắn muốn gỡ bỏ hóa đơn gốc này?".t()) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onInvoiceImageChanged(null)
+                        showDeleteConfirmDialog = false
+                        Toast.makeText(context, "Đã xóa ảnh hóa đơn".t(), Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Gỡ bỏ".t())
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Hủy".t())
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun OriginalInvoiceTopBarAction(
+    invoiceImageUri: String?,
+    onInvoiceImageChanged: (String?) -> Unit
+) {
+    val context = LocalContext.current
+    var showSourceChoiceDialog by remember { mutableStateOf(false) }
+    var showActionMenuDialog by remember { mutableStateOf(false) }
+    var pendingPreviewUri by remember { mutableStateOf<Uri?>(null) }
+    var viewingFullScreenUri by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var cameraTempUri by remember { mutableStateOf<Uri?>(null) }
+
+    // Gallery launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            pendingPreviewUri = uri
+        }
+    }
+
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && cameraTempUri != null) {
+            pendingPreviewUri = cameraTempUri
+        }
+    }
+
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            try {
+                val tempFile = File(context.cacheDir, "invoice_cam_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                cameraTempUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Lỗi máy ảnh: " + e.localizedMessage, Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Vui lòng cấp quyền máy ảnh để chụp ảnh hóa đơn".t(), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val startCamera = {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            try {
+                val tempFile = File(context.cacheDir, "invoice_cam_${System.currentTimeMillis()}.jpg")
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", tempFile)
+                cameraTempUri = uri
+                cameraLauncher.launch(uri)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Toast.makeText(context, "Lỗi máy ảnh: " + e.localizedMessage, Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    val primaryGreen = MaterialTheme.colorScheme.primary
+
+    // Column in the top bar: centered Icon on top and small text "Lưu hóa đơn gốc" below
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable {
+                if (invoiceImageUri == null) {
+                    showSourceChoiceDialog = true
+                } else {
+                    showActionMenuDialog = true
+                }
+            }
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .testTag("top_invoice_photo_btn")
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (invoiceImageUri != null) {
+                // Circular container with image icon
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .background(primaryGreen.copy(alpha = 0.15f), CircleShape)
+                        .border(1.2.dp, primaryGreen, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Image,
+                        contentDescription = "Hóa đơn gốc".t(),
+                        tint = primaryGreen,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                // Tiny green check badge in bottom-right corner
+                Box(
+                    modifier = Modifier
+                        .size(11.dp)
+                        .align(Alignment.BottomEnd)
+                        .background(primaryGreen, CircleShape)
+                        .border(0.8.dp, MaterialTheme.colorScheme.surface, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(7.dp)
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Default.ReceiptLong,
+                    contentDescription = "Lưu hóa đơn gốc".t(),
+                    tint = primaryGreen,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Lưu hóa đơn gốc".t(),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = primaryGreen,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+
+    if (showActionMenuDialog && invoiceImageUri != null) {
+        Dialog(onDismissRequest = { showActionMenuDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth(0.9f)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(primaryGreen.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Hóa đơn gốc".t(), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = primaryGreen)
+                            Text("Đã đính kèm ảnh hóa đơn".t(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Option 1: Xem ảnh
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showActionMenuDialog = false
+                                viewingFullScreenUri = invoiceImageUri
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = primaryGreen.copy(alpha = 0.08f)),
+                        border = BorderStroke(1.dp, primaryGreen.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Visibility, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Xem hóa đơn gốc".t(), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Option 2: Đổi ảnh khác
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showActionMenuDialog = false
+                                showSourceChoiceDialog = true
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Đổi ảnh hóa đơn".t(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Option 3: Xóa ảnh
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showActionMenuDialog = false
+                                showDeleteConfirmDialog = true
+                            },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(22.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Xóa ảnh hóa đơn".t(), fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    TextButton(
+                        onClick = { showActionMenuDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Đóng".t(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showSourceChoiceDialog) {
+        InvoiceSourceChoiceDialog(
+            onDismiss = { showSourceChoiceDialog = false },
+            onSelectCamera = {
+                showSourceChoiceDialog = false
+                startCamera()
+            },
+            onSelectGallery = {
+                showSourceChoiceDialog = false
+                galleryLauncher.launch("image/*")
+            }
+        )
+    }
+
+    if (pendingPreviewUri != null) {
+        InvoiceImagePreviewAndSaveDialog(
+            imageUri = pendingPreviewUri!!,
+            onDismiss = { pendingPreviewUri = null },
+            onSave = {
+                onInvoiceImageChanged(pendingPreviewUri.toString())
+                pendingPreviewUri = null
+                Toast.makeText(context, "Đã lưu hóa đơn gốc thành công!".t(), Toast.LENGTH_SHORT).show()
+            },
+            onRetake = {
+                pendingPreviewUri = null
+                showSourceChoiceDialog = true
+            }
+        )
+    }
+
+    if (viewingFullScreenUri != null) {
+        InvoiceImageViewerDialog(
+            imageUri = viewingFullScreenUri!!,
+            onDismiss = { viewingFullScreenUri = null }
+        )
+    }
+
+    if (showDeleteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Gỡ bỏ hóa đơn gốc".t(), fontWeight = FontWeight.Bold) },
+            text = { Text("Bạn có chắc chắn muốn gỡ bỏ hóa đơn gốc này?".t()) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onInvoiceImageChanged(null)
+                        showDeleteConfirmDialog = false
+                        Toast.makeText(context, "Đã xóa ảnh hóa đơn".t(), Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Gỡ bỏ".t())
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Hủy".t())
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun InvoiceSourceChoiceDialog(
+    onDismiss: () -> Unit,
+    onSelectCamera: () -> Unit,
+    onSelectGallery: () -> Unit
+) {
+    val primaryGreen = MaterialTheme.colorScheme.primary
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth(0.95f)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(primaryGreen.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = null,
+                            tint = primaryGreen,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Lưu hóa đơn gốc".t(),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryGreen
+                        )
+                        Text(
+                            text = "Chọn nguồn tải ảnh hóa đơn chứng từ".t(),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Option 1: Chụp ảnh (Camera)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectCamera() }
+                        .testTag("source_option_camera"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = primaryGreen.copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, primaryGreen.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(primaryGreen, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.PhotoCamera, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "1. Chụp ảnh".t(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Dùng máy ảnh chụp trực tiếp hóa đơn".t(),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = primaryGreen)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Option 2: Chọn ảnh từ thư viện (Gallery)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelectGallery() }
+                        .testTag("source_option_gallery"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = primaryGreen.copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, primaryGreen.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(primaryGreen, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "2. Chọn ảnh từ thư viện".t(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Chọn file ảnh hóa đơn có sẵn trong máy".t(),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = primaryGreen)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Hủy".t(), fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InvoiceImagePreviewAndSaveDialog(
+    imageUri: Uri,
+    onDismiss: () -> Unit,
+    onSave: () -> Unit,
+    onRetake: () -> Unit
+) {
+    val primaryGreen = MaterialTheme.colorScheme.primary
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Image, contentDescription = null, tint = primaryGreen, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Hóa đơn gốc".t(),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = primaryGreen
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Đóng".t())
+                    }
+                }
+
+                Divider(modifier = Modifier.padding(vertical = 10.dp), color = MaterialTheme.colorScheme.outlineVariant)
+
+                // Image Preview Area with Zoom & Pan
+                var scale by remember { mutableStateOf(1f) }
+                var offset by remember { mutableStateOf(Offset.Zero) }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.9f))
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 4f)
+                                offset = if (scale == 1f) Offset.Zero else offset + pan
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = imageUri,
+                        contentDescription = "Hóa đơn gốc".t(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer(
+                                scaleX = scale,
+                                scaleY = scale,
+                                translationX = offset.x,
+                                translationY = offset.y
+                            )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bottom actions: Nút "LƯU HÓA ĐƠN"
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onSave,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = primaryGreen,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("save_invoice_image_btn"),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "LƯU HÓA ĐƠN".t(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onRetake,
+                            modifier = Modifier.weight(1f).height(44.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Chọn lại".t(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        TextButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) {
+                            Text("Hủy".t(), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun InvoiceImageViewerDialog(
+    imageUri: String,
+    onDismiss: () -> Unit
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = Color.Black
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model = Uri.parse(imageUri),
+                    contentDescription = "Hóa đơn gốc".t(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 5f)
+                                offset = if (scale == 1f) Offset.Zero else offset + pan
+                            }
+                        }
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offset.x,
+                            translationY = offset.y
+                        )
+                )
+
+                // Top Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Image, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Hóa đơn gốc".t(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                            .size(38.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Đóng".t(), tint = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+

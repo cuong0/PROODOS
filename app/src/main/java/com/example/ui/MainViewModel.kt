@@ -588,10 +588,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cashPaid: Double,
         transferPaid: Double,
         isDraft: Boolean = false,
+        invoiceImageUri: String? = null,
         onComplete: () -> Unit
     ) {
         viewModelScope.launch {
-            val orderId = repository.createImportOrder(supplierName, items, isDraft)
+            val savedImage = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                saveUriToInternalStorage(invoiceImageUri)
+            }
+            val orderId = repository.createImportOrder(supplierName, items, isDraft, savedImage)
             prefs.edit()
                 .putFloat("import_order_cash_paid_$orderId", cashPaid.toFloat())
                 .putFloat("import_order_transfer_paid_$orderId", transferPaid.toFloat())
@@ -699,10 +703,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         supplierName: String,
         items: List<ImportOrderItemTemp>,
         isDraft: Boolean = false,
+        invoiceImageUri: String? = null,
         onComplete: () -> Unit
     ) {
         viewModelScope.launch {
-            repository.updateImportOrder(orderId, timestamp, supplierName, items, isDraft)
+            val savedImage = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                saveUriToInternalStorage(invoiceImageUri)
+            }
+            repository.updateImportOrder(orderId, timestamp, supplierName, items, isDraft, savedImage)
             onComplete()
         }
     }

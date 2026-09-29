@@ -54,7 +54,8 @@ class AppRepository(
         timestamp: Long,
         supplierName: String,
         items: List<ImportOrderItemTemp>,
-        isDraft: Boolean = false
+        isDraft: Boolean = false,
+        invoiceImageUri: String? = null
     ) {
         val prevOrder = importOrderDao.getAllImportOrdersList().find { it.id == orderId }
         val wasDraft = prevOrder?.isDraft ?: false
@@ -77,7 +78,8 @@ class AppRepository(
             timestamp = timestamp,
             supplierName = supplierName,
             totalAmount = total,
-            isDraft = isDraft
+            isDraft = isDraft,
+            invoiceImageUri = invoiceImageUri ?: prevOrder?.invoiceImageUri
         )
         importOrderDao.insertImportOrder(order)
         
@@ -120,13 +122,15 @@ class AppRepository(
     suspend fun createImportOrder(
         supplierName: String,
         items: List<ImportOrderItemTemp>,
-        isDraft: Boolean = false
+        isDraft: Boolean = false,
+        invoiceImageUri: String? = null
     ): Long {
         val total = items.sumOf { it.quantity * it.importPrice }
         val order = ImportOrder(
             supplierName = supplierName,
             totalAmount = total,
-            isDraft = isDraft
+            isDraft = isDraft,
+            invoiceImageUri = invoiceImageUri
         )
         val orderId = importOrderDao.insertImportOrder(order)
         
