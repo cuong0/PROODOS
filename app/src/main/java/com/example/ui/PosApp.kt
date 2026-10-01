@@ -1193,6 +1193,8 @@ fun InvoicesTab(viewModel: MainViewModel) {
     }
 
     var confirmedDateRange by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    val visibleDayProfits = remember { mutableStateMapOf<String, Boolean>() }
+    val visibleInvoiceProfits = remember { mutableStateMapOf<Int, Boolean>() }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Card(
@@ -1547,7 +1549,8 @@ fun InvoicesTab(viewModel: MainViewModel) {
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 grouped.forEach { (dateHeader, list) ->
-                    item {
+                    val isDayVisible = visibleDayProfits[dateHeader] == true
+                    item(key = "header_$dateHeader") {
                         val context = LocalContext.current
                         val prefs = remember(context) { context.getSharedPreferences("proodos_prefs", Context.MODE_PRIVATE) }
                         val totalDayProfit = list.sumOf { invoiceWithItems ->
@@ -1558,11 +1561,7 @@ fun InvoicesTab(viewModel: MainViewModel) {
                             invoiceWithItems.invoice.profit - costAmount
                         }
                         val dayProfitColor = if (totalDayProfit >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        val dayProfitText = if (totalDayProfit >= 0) {
-                            "Tổng lãi: ".t() + formatCurrency(totalDayProfit)
-                        } else {
-                            "Tổng lỗ: ".t() + formatCurrency(totalDayProfit)
-                        }
+
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1576,17 +1575,54 @@ fun InvoicesTab(viewModel: MainViewModel) {
                                 fontSize = 15.sp,
                                 color = dayProfitColor
                             )
-                            Text(
-                                text = dayProfitText,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = dayProfitColor
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        val nextState = !isDayVisible
+                                        visibleDayProfits[dateHeader] = nextState
+                                        list.forEach { invWithItems ->
+                                            visibleInvoiceProfits[invWithItems.invoice.id] = nextState
+                                        }
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                                    .testTag("toggle_day_profit_${dateHeader}")
+                            ) {
+                                if (isDayVisible) {
+                                    val dayProfitText = if (totalDayProfit >= 0) "Tổng lãi: ".t() + formatCurrency(totalDayProfit) else "Tổng lỗ: ".t() + formatCurrency(totalDayProfit)
+                                    Text(
+                                        text = dayProfitText,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = dayProfitColor
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Visibility,
+                                        contentDescription = "Ẩn tổng lãi".t(),
+                                        tint = dayProfitColor.copy(alpha = 0.85f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.VisibilityOff,
+                                        contentDescription = "Hiện tổng lãi".t(),
+                                        tint = dayProfitColor.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
                         }
                     }
-                    items(list) { invoiceWithItems ->
+                    items(list, key = { it.invoice.id }) { invoiceWithItems ->
+                        val isProfitVisible = visibleInvoiceProfits[invoiceWithItems.invoice.id] == true
                         InvoiceHistoryCard(
                             invoiceWithItems = invoiceWithItems,
+                            isProfitVisible = isProfitVisible,
+                            onToggleProfitVisibility = {
+                                visibleInvoiceProfits[invoiceWithItems.invoice.id] = !isProfitVisible
+                            },
                             onClick = { viewModel.viewInvoiceDetail(invoiceWithItems) }
                         )
                     }
@@ -1597,7 +1633,12 @@ fun InvoicesTab(viewModel: MainViewModel) {
 }
 
 @Composable
-fun InvoiceHistoryCard(invoiceWithItems: InvoiceWithItems, onClick: () -> Unit) {
+fun InvoiceHistoryCard(
+    invoiceWithItems: InvoiceWithItems,
+    isProfitVisible: Boolean,
+    onToggleProfitVisibility: () -> Unit,
+    onClick: () -> Unit
+) {
     val inv = invoiceWithItems.invoice
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("proodos_prefs", Context.MODE_PRIVATE) }
@@ -1608,12 +1649,6 @@ fun InvoiceHistoryCard(invoiceWithItems: InvoiceWithItems, onClick: () -> Unit) 
     val costAmountStr = prefs.getString("invoice_cost_amount_${inv.id}", "") ?: ""
     val costAmount = if (isCostActive) (costAmountStr.toDoubleOrNull() ?: 0.0) else 0.0
     val displayedProfit = inv.profit - costAmount
-
-    val profitText = if (displayedProfit >= 0) {
-        "Lãi: ".t() + formatCurrency(displayedProfit)
-    } else {
-        "Lỗ: ".t() + formatCurrency(displayedProfit)
-    }
     val profitColor = if (displayedProfit >= 0) Color(0xFF4CAF50) else Color.Red
 
     Card(
@@ -1631,7 +1666,7 @@ fun InvoiceHistoryCard(invoiceWithItems: InvoiceWithItems, onClick: () -> Unit) 
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = inv.storeName,
                     fontWeight = FontWeight.Bold,
@@ -1652,12 +1687,39 @@ fun InvoiceHistoryCard(invoiceWithItems: InvoiceWithItems, onClick: () -> Unit) 
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                Text(
-                    text = profitText,
-                    fontSize = 11.sp,
-                    color = profitColor,
-                    fontWeight = FontWeight.Bold
-                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { onToggleProfitVisibility() }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                        .testTag("toggle_invoice_profit_${inv.id}")
+                ) {
+                    if (isProfitVisible) {
+                        val profitText = if (displayedProfit >= 0) "Lãi: ".t() + formatCurrency(displayedProfit) else "Lỗ: ".t() + formatCurrency(displayedProfit)
+                        Text(
+                            text = profitText,
+                            fontSize = 11.sp,
+                            color = profitColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Icon(
+                            imageVector = Icons.Default.Visibility,
+                            contentDescription = "Ẩn lãi".t(),
+                            tint = profitColor.copy(alpha = 0.85f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.VisibilityOff,
+                            contentDescription = "Hiện lãi".t(),
+                            tint = profitColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -3354,23 +3416,44 @@ fun CartItemRow(
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
     val revealDeletePx = with(density) { 80.dp.toPx() }
-    val maxDragLimitPx = with(density) { 220.dp.toPx() }
+    val maxDragLimitPx = with(density) { 600.dp.toPx() }
+    val threshold10dp = with(density) { 10.dp.toPx() }
+    val threshold15dp = with(density) { 15.dp.toPx() }
+    val threshold30dp = with(density) { 30.dp.toPx() }
     val offsetX = remember { Animatable(0f) }
     
     val currentIsSwiped by rememberUpdatedState(isSwiped)
     val currentOnDirectDelete by rememberUpdatedState(onDirectDelete)
     val currentOnSwipeChange by rememberUpdatedState(onSwipeChange)
 
-    LaunchedEffect(isSwiped) {
-        val target = if (isSwiped) -revealDeletePx else 0f
-        if (offsetX.value != target) {
-            offsetX.animateTo(
-                targetValue = target,
-                animationSpec = androidx.compose.animation.core.spring(
-                    dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
-                    stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+    var isDeleting by remember(cartItem.product.id) { mutableStateOf(false) }
+
+    val triggerDirectDelete: () -> Unit = {
+        if (!isDeleting) {
+            isDeleting = true
+            coroutineScope.launch {
+                currentOnSwipeChange(false)
+                offsetX.animateTo(
+                    targetValue = -with(density) { 500.dp.toPx() },
+                    animationSpec = androidx.compose.animation.core.tween(durationMillis = 180)
                 )
-            )
+                currentOnDirectDelete()
+            }
+        }
+    }
+
+    LaunchedEffect(isSwiped) {
+        if (!isDeleting) {
+            val target = if (isSwiped) -revealDeletePx else 0f
+            if (offsetX.value != target) {
+                offsetX.animateTo(
+                    targetValue = target,
+                    animationSpec = androidx.compose.animation.core.spring(
+                        dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                        stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+                    )
+                )
+            }
         }
     }
 
@@ -3384,31 +3467,29 @@ fun CartItemRow(
             .pointerInput(cartItem.product.id, isSwiped) {
                 detectHorizontalDragGestures(
                     onDragStart = {
+                        // Trạng thái đã mở trước đó (Lần 2)
                         startedInSwipedState = currentIsSwiped
                         dragAccumulatedX = 0f
                     },
                     onDragEnd = {
+                        if (isDeleting) return@detectHorizontalDragGestures
                         coroutineScope.launch {
                             val currentOffset = offsetX.value
-                            val threshold15dp = with(density) { 15.dp.toPx() }
-                            val threshold20dp = with(density) { 20.dp.toPx() }
 
                             if (startedInSwipedState) {
-                                // Lần kéo thứ 2: Đang mở nút xóa và vuốt tiếp sang trái -> XÓA TRỰC TIẾP
-                                if (dragAccumulatedX < -threshold15dp || currentOffset < -revealDeletePx - threshold15dp) {
-                                    currentOnSwipeChange(false)
-                                    offsetX.animateTo(0f)
-                                    currentOnDirectDelete()
-                                } else if (dragAccumulatedX > threshold20dp || currentOffset > -revealDeletePx * 0.5f) {
-                                    // Vuốt sang phải -> ĐÓNG LẠI
+                                // LẦN KÉO THỨ 2: Đang mở nút xóa, vuốt tiếp sang trái -> XÓA HẲN
+                                if (dragAccumulatedX < -threshold10dp || currentOffset < -revealDeletePx - threshold10dp) {
+                                    triggerDirectDelete()
+                                } else if (dragAccumulatedX > threshold15dp || currentOffset > -revealDeletePx * 0.5f) {
+                                    // Kéo từ trái sang phải -> ĐÓNG LẠI
                                     currentOnSwipeChange(false)
                                     offsetX.animateTo(0f)
                                 } else {
-                                    // Giữ nguyên trạng thái mở
+                                    // Giữ nguyên trạng thái mở nút xóa
                                     offsetX.animateTo(-revealDeletePx)
                                 }
                             } else {
-                                // Lần kéo thứ 1: Mở nút xóa
+                                // LẦN KÉO THỨ 1: Chỉ mở nút xóa khi vuốt sang trái, tuyệt đối không xóa ở lần 1
                                 if (currentOffset <= -revealDeletePx * 0.35f || dragAccumulatedX < -revealDeletePx * 0.35f) {
                                     currentOnSwipeChange(true)
                                     offsetX.animateTo(
@@ -3426,15 +3507,28 @@ fun CartItemRow(
                         }
                     },
                     onDragCancel = {
+                        if (isDeleting) return@detectHorizontalDragGestures
                         coroutineScope.launch {
-                            val target = if (currentIsSwiped) -revealDeletePx else 0f
-                            offsetX.animateTo(target)
+                            if (startedInSwipedState && (dragAccumulatedX < -threshold10dp || offsetX.value < -revealDeletePx - threshold10dp)) {
+                                triggerDirectDelete()
+                            } else {
+                                val target = if (currentIsSwiped) -revealDeletePx else 0f
+                                offsetX.animateTo(target)
+                            }
                         }
                     },
                     onHorizontalDrag = { _, dragAmount ->
+                        if (isDeleting) return@detectHorizontalDragGestures
                         dragAccumulatedX += dragAmount
+                        
+                        // Nếu là LẦN 2 (đã mở thùng rác) và tiếp tục vuốt sang trái mạnh -> Kích hoạt xóa ngay lập tức
+                        if (startedInSwipedState && (dragAccumulatedX < -threshold30dp || (offsetX.value + dragAmount) < -revealDeletePx - threshold30dp)) {
+                            triggerDirectDelete()
+                            return@detectHorizontalDragGestures
+                        }
+
                         coroutineScope.launch {
-                            val limit = if (startedInSwipedState) -maxDragLimitPx else -revealDeletePx - with(density) { 15.dp.toPx() }
+                            val limit = if (startedInSwipedState) -maxDragLimitPx else -revealDeletePx - threshold15dp
                             val newOffset = (offsetX.value + dragAmount).coerceIn(limit, 0f)
                             offsetX.snapTo(newOffset)
                         }
@@ -8487,9 +8581,10 @@ fun ImportManagementScreen(viewModel: MainViewModel) {
             onDismiss = { showCreateOrderDialog = false },
             onSuccess = {
                 showCreateOrderDialog = false
-                Toast.makeText(context, "Lập đơn nhập hàng thành công!".t(), Toast.LENGTH_SHORT).show()
+                viewModel.saveScrollPosition("import_management", 0, 0)
                 coroutineScope.launch {
-                    kotlinx.coroutines.delay(200)
+                    listState.scrollToItem(0)
+                    kotlinx.coroutines.delay(100)
                     listState.animateScrollToItem(0)
                 }
             }
@@ -8646,7 +8741,10 @@ fun CreateImportOrderDialog(
             cashPaid = cashPaid,
             transferPaid = transferPaid,
             invoiceImageUri = invoiceImageUri,
-            onComplete = onSuccess
+            onComplete = {
+                onSuccess()
+                Toast.makeText(context, "Lập đơn nhập hàng thành công!".t(), Toast.LENGTH_SHORT).show()
+            }
         )
     }
 
@@ -9135,7 +9233,7 @@ fun CreateImportOrderDialog(
                             isDraft = true,
                             invoiceImageUri = invoiceImageUri,
                             onComplete = {
-                                onDismiss()
+                                onSuccess()
                                 Toast.makeText(context, "Đã lưu nháp đơn nhập hàng!".t(), Toast.LENGTH_SHORT).show()
                             }
                         )
