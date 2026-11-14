@@ -1,0 +1,278 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile document storing basic account and synchronization details",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The Firebase Authentication UID strictly matching request.auth.uid"
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's Google account email"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name from Google Sign-In"
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "The user's profile avatar photo URL from Google Sign-In"
+        },
+        "lastAccessTime": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when user last accessed the app"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account initialization timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account update timestamp"
+        }
+      },
+      "required": ["userId", "email", "displayName", "createdAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A product category owned by the user",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Numeric unique identifier matching local Room ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the category"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["id", "name", "userId"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "A merchandise item or product owned by the user",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Numeric unique identifier matching local Room ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Product display name"
+        },
+        "categoryId": {
+          "type": "integer",
+          "description": "Optional category ID"
+        },
+        "importPrice": {
+          "type": "number",
+          "description": "Cost or import price"
+        },
+        "sellPrice": {
+          "type": "number",
+          "description": "Retail selling price"
+        },
+        "trackInventory": {
+          "type": "boolean",
+          "description": "Whether stock tracking is enabled"
+        },
+        "stockQuantity": {
+          "type": "integer",
+          "description": "Current on-hand stock quantity"
+        },
+        "imageUri": {
+          "type": "string",
+          "description": "Optional URI or path to image"
+        },
+        "supplierName": {
+          "type": "string",
+          "description": "Supplier name"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["id", "name", "userId"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Sales invoice transaction containing embedded purchased items",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Numeric unique identifier matching local Room ID"
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "Transaction epoch milliseconds"
+        },
+        "storeName": {
+          "type": "string",
+          "description": "Store or merchant name"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Invoice grand total"
+        },
+        "profit": {
+          "type": "number",
+          "description": "Total profit calculated"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Customer name if recorded"
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Customer phone number if recorded"
+        },
+        "items": {
+          "type": "array",
+          "description": "List of line items on the invoice"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["id", "timestamp", "storeName", "totalAmount", "userId"]
+    },
+    "ImportOrder": {
+      "title": "ImportOrder",
+      "description": "Goods stock receipt or import purchase order",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "description": "Numeric unique identifier matching local Room ID"
+        },
+        "timestamp": {
+          "type": "integer",
+          "description": "Order creation epoch milliseconds"
+        },
+        "supplierName": {
+          "type": "string",
+          "description": "Supplier name"
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "Total amount paid or payable"
+        },
+        "isDraft": {
+          "type": "boolean",
+          "description": "Whether order is in draft state"
+        },
+        "invoiceImageUri": {
+          "type": "string",
+          "description": "Receipt image URI if attached"
+        },
+        "items": {
+          "type": "array",
+          "description": "List of imported items"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["id", "timestamp", "supplierName", "totalAmount", "userId"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "General store and sync preferences",
+      "type": "object",
+      "properties": {
+        "storeName": {
+          "type": "string",
+          "description": "Saved store name"
+        },
+        "isAutoBackup": {
+          "type": "boolean",
+          "description": "Auto backup toggle preference"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner user ID"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Stores user profile and account details. Scoped strictly to the authenticated user's UID."
+    },
+    "/users/{userId}/categories/{categoryId}": {
+      "schema": {
+        "$ref": "#/entities/Category"
+      },
+      "description": "Stores categories belonging to the user."
+    },
+    "/users/{userId}/products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/Product"
+      },
+      "description": "Stores products and inventory items belonging to the user."
+    },
+    "/users/{userId}/invoices/{invoiceId}": {
+      "schema": {
+        "$ref": "#/entities/Invoice"
+      },
+      "description": "Stores sales invoice transactions belonging to the user."
+    },
+    "/users/{userId}/importOrders/{orderId}": {
+      "schema": {
+        "$ref": "#/entities/ImportOrder"
+      },
+      "description": "Stores inventory import orders belonging to the user."
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": {
+        "$ref": "#/entities/AppSettings"
+      },
+      "description": "Stores app settings and preferences belonging to the user."
+    }
+  }
+}

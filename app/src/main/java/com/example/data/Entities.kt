@@ -34,7 +34,10 @@ data class Invoice(
     val profit: Double,
     val customerName: String? = null,
     val customerPhone: String? = null
-)
+) {
+    val displayCustomerName: String
+        get() = customerName?.trim()?.takeIf { it.isNotEmpty() } ?: storeName.trim()
+}
 
 @Entity(tableName = "invoice_items")
 data class InvoiceItem(

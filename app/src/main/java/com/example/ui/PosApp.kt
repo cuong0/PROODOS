@@ -11,9 +11,11 @@ import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.BackHandler
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,6 +39,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material3.*
@@ -338,35 +342,17 @@ fun PosApp(viewModel: MainViewModel) {
         Translator.currentLanguageState.value = currentLang
     }
 
-    // Request permissions instantly on startup
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val notifGranted = permissions[Manifest.permission.POST_NOTIFICATIONS] ?: false
-        val galleryGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions[Manifest.permission.READ_MEDIA_IMAGES] ?: false
-        } else {
-            (permissions[Manifest.permission.READ_EXTERNAL_STORAGE] ?: false) &&
-            (permissions[Manifest.permission.WRITE_EXTERNAL_STORAGE] ?: false)
-        }
-    }
-
-    LaunchedEffect(Unit) {
-        val permissions = mutableListOf<String>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
-            permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
-        } else {
-            permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-            permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-        }
-        permissionLauncher.launch(permissions.toTypedArray())
-    }
-
     MyApplicationTheme(darkTheme = isDark) {
+        val showFirstLaunchPrivacy by viewModel.showFirstLaunchPrivacyDialog.collectAsStateWithLifecycle()
         val showOnboardingTour by viewModel.showOnboardingTour.collectAsStateWithLifecycle()
         val backupProgress by viewModel.backupProgress.collectAsStateWithLifecycle()
         var showBackupExitWarningDialog by remember { mutableStateOf(false) }
+
+        val firstLaunchPermissionsLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) { _ ->
+            viewModel.startOnboardingAfterPermissions()
+        }
 
         if (backupProgress != null && subScreen == null) {
             BackHandler {
@@ -498,6 +484,28 @@ fun PosApp(viewModel: MainViewModel) {
                                 SubScreen.INVENTORY_MANAGEMENT -> InventoryManagementScreen(viewModel)
                                 SubScreen.DEBT_MANAGEMENT -> DebtManagementScreen(viewModel)
                                 SubScreen.IMPORT_MANAGEMENT -> ImportManagementScreen(viewModel)
+                                SubScreen.SIGN_IN -> SignInScreen(
+                                    viewModel = viewModel,
+                                    onAuthSuccess = {
+                                        viewModel.syncUserProfile(com.google.firebase.Firebase.auth.currentUser)
+                                        viewModel.selectSubScreen(null)
+                                    },
+                                    onBack = {
+                                        viewModel.selectSubScreen(null)
+                                    }
+                                )
+                                SubScreen.ACCOUNT_SETTINGS -> {
+                                    val acc = viewModel.currentAppAccount.collectAsStateWithLifecycle().value
+                                    if (acc != null) {
+                                        AccountSettingsScreen(
+                                            viewModel = viewModel,
+                                            account = acc,
+                                            onClose = { viewModel.selectSubScreen(null) }
+                                        )
+                                    } else {
+                                        viewModel.selectSubScreen(null)
+                                    }
+                                }
                                 else -> {}
                             }
                         } else {
@@ -514,8 +522,32 @@ fun PosApp(viewModel: MainViewModel) {
             }
 
             // Spotlight Tooltip Onboarding Tour ("tin nổi lên chỉ vào phần cần giới thiệu")
-            if (showOnboardingTour) {
+            if (showOnboardingTour && !showFirstLaunchPrivacy) {
                 OnboardingTourScreen(viewModel = viewModel)
+            }
+
+            if (showFirstLaunchPrivacy) {
+                PrivacyPolicyPopupDialog(
+                    onAgree = {
+                        viewModel.acceptPrivacyPolicy()
+                        val perms = mutableListOf(
+                            android.Manifest.permission.CAMERA,
+                            android.Manifest.permission.READ_CALENDAR,
+                            android.Manifest.permission.WRITE_CALENDAR
+                        )
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            perms.add(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                        try {
+                            firstLaunchPermissionsLauncher.launch(perms.toTypedArray())
+                        } catch (_: Exception) {
+                            viewModel.startOnboardingAfterPermissions()
+                        }
+                    },
+                    onCancel = {
+                        (context as? android.app.Activity)?.finish()
+                    }
+                )
             }
         }
     }
@@ -678,7 +710,8 @@ fun PosTab(viewModel: MainViewModel) {
             // Search product text field styled
             TextField(
                 value = searchQuery,
-                onValueChange = { searchQuery = it },
+                onValueChange = { searchQuery = it.capitalizeWords() },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 placeholder = { Text("Tìm kiếm sản phẩm...".t(), color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Tìm kiếm", tint = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier
@@ -797,63 +830,74 @@ fun PosTab(viewModel: MainViewModel) {
                     letterSpacing = (-0.5).sp
                 )
                 Text(
-                    text = "Phiên bản 1.3.9".t(),
+                    text = "Phiên bản ".t() + com.example.BuildConfig.VERSION_NAME,
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
                     fontWeight = FontWeight.Medium
                 )
             }
 
-            // Tactile Shopping Cart icon customized
-            val totalCartQty = cart.sumOf { it.quantity }
-            Box(
-                modifier = Modifier
-                    .wrapContentSize()
-                    .testTag("view_cart_button_wrapper")
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                val syncState by viewModel.syncState.collectAsStateWithLifecycle()
+                SyncStatusDot(
+                    syncState = syncState,
+                    dotSize = 8.dp
+                )
+
+                // Tactile Shopping Cart icon customized
+                val totalCartQty = cart.sumOf { it.quantity }
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.primaryContainer)
-                        .clickable { viewModel.selectSubScreen(SubScreen.CART) }
-                        .testTag("view_cart_button"),
-                    contentAlignment = Alignment.Center
+                        .wrapContentSize()
+                        .testTag("view_cart_button_wrapper")
                 ) {
-                    Icon(
-                        Icons.Default.ShoppingCart,
-                        contentDescription = "Giỏ hàng",
-                        tint = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                if (cart.isNotEmpty()) {
-                    val qtyText = if (totalCartQty > 999) "999+" else totalCartQty.toString()
-                    val badgeFontSize = when {
-                        qtyText.length >= 4 -> 9.sp
-                        qtyText.length == 3 -> 10.sp
-                        qtyText.length == 2 -> 11.sp
-                        else -> 12.sp
-                    }
                     Box(
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 8.dp, y = (-8).dp)
-                            .defaultMinSize(minWidth = 24.dp, minHeight = 24.dp)
-                            .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(99.dp))
-                            .border(2.dp, MaterialTheme.colorScheme.background, RoundedCornerShape(99.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { viewModel.selectSubScreen(SubScreen.CART) }
+                            .testTag("view_cart_button"),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = qtyText,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontSize = badgeFontSize,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            softWrap = false
+                        Icon(
+                            Icons.Default.ShoppingCart,
+                            contentDescription = "Giỏ hàng",
+                            tint = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.size(24.dp)
                         )
+                    }
+
+                    if (cart.isNotEmpty()) {
+                        val qtyText = if (totalCartQty > 999) "999+" else totalCartQty.toString()
+                        val badgeFontSize = when {
+                            qtyText.length >= 4 -> 9.sp
+                            qtyText.length == 3 -> 10.sp
+                            qtyText.length == 2 -> 11.sp
+                            else -> 12.sp
+                        }
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 8.dp, y = (-8).dp)
+                                .defaultMinSize(minWidth = 24.dp, minHeight = 24.dp)
+                                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(99.dp))
+                                .border(2.dp, MaterialTheme.colorScheme.background, RoundedCornerShape(99.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = qtyText,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = badgeFontSize,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
             }
@@ -1218,21 +1262,32 @@ fun InvoicesTab(viewModel: MainViewModel) {
                         color = MaterialTheme.colorScheme.primary
                     )
                     
-                    TextButton(
-                        onClick = { showReportPanel = !showReportPanel },
-                        colors = ButtonDefaults.textButtonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.testTag("btn_lap_bao_cao")
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Assessment,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                        val syncState by viewModel.syncState.collectAsStateWithLifecycle()
+                        SyncStatusDot(
+                            syncState = syncState,
+                            dotSize = 8.dp
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "Lập báo cáo".t(), fontSize = 14.sp)
+
+                        TextButton(
+                            onClick = { showReportPanel = !showReportPanel },
+                            colors = ButtonDefaults.textButtonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.testTag("btn_lap_bao_cao")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Assessment,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(text = "Lập báo cáo".t(), fontSize = 14.sp)
+                        }
                     }
                 }
                 
@@ -1668,7 +1723,7 @@ fun InvoiceHistoryCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = inv.storeName,
+                    text = inv.displayCustomerName.ifBlank { "Khách lẻ".t() },
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
@@ -1772,8 +1827,8 @@ fun ManagementTab(viewModel: MainViewModel) {
         maxOf(0.0, combined.invoice.totalAmount - paidAmt)
     }
 
-    var manualCashAdjustment by remember { mutableStateOf(prefs.getSafeFloat("manual_cash_adjustment", 0f).toDouble()) }
-    var manualAccountAdjustment by remember { mutableStateOf(prefs.getSafeFloat("manual_account_adjustment", 0f).toDouble()) }
+    val manualCashAdjustment by viewModel.manualCashAdjustment.collectAsStateWithLifecycle()
+    val manualAccountAdjustment by viewModel.manualAccountAdjustment.collectAsStateWithLifecycle()
 
     val finalTienMat = tongTienMat + manualCashAdjustment
     val finalTaiKhoan = tongTaiKhoan + manualAccountAdjustment
@@ -1809,13 +1864,26 @@ fun ManagementTab(viewModel: MainViewModel) {
                 .verticalScroll(scrollState)
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Bảng quản lý".t(),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 20.dp, top = 8.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Bảng quản lý".t(),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                val syncState by viewModel.syncState.collectAsStateWithLifecycle()
+                SyncStatusDot(
+                    syncState = syncState,
+                    dotSize = 8.dp
+                )
+            }
 
             // Menu 1: Quản lý Mặt hàng
             Card(
@@ -2256,14 +2324,7 @@ fun ManagementTab(viewModel: MainViewModel) {
                             val newManualCash = parsedCash - tongTienMat
                             val newManualAccount = parsedAccount - tongTaiKhoan
 
-                            prefs.edit()
-                                .putFloat("manual_cash_adjustment", newManualCash.toFloat())
-                                .putFloat("manual_account_adjustment", newManualAccount.toFloat())
-                                .apply()
-
-                            manualCashAdjustment = newManualCash
-                            manualAccountAdjustment = newManualAccount
-
+                            viewModel.syncCashBookAdjustments(newManualCash, newManualAccount)
                             showEditMoneySource = false
                             ToastUtils.show(context, "Đã cập nhật nguồn tiền thành công!".t())
                         },
@@ -2300,18 +2361,26 @@ fun SettingsTab(viewModel: MainViewModel) {
     var showDeleteAllConfirm by remember { mutableStateOf(false) }
     var showBackupBeforeDeletePrompt by remember { mutableStateOf(false) }
     var showCancelBackupConfirm by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
 
-    // Multi-permissions trigger launcher
-    val permLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        Toast.makeText(context, "Đã cập quyền hoàn tất".t(), Toast.LENGTH_SHORT).show()
-    }
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
         if (uri != null) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                try {
+                    notifPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                } catch (_: Exception) {}
+            }
             viewModel.exportBackup(context, uri) { success, msg ->
                 Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
@@ -2322,9 +2391,7 @@ fun SettingsTab(viewModel: MainViewModel) {
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            viewModel.importBackup(context, uri) { success, msg ->
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-            }
+            pendingRestoreUri = uri
         }
     }
 
@@ -2346,7 +2413,6 @@ fun SettingsTab(viewModel: MainViewModel) {
         if (isTourActive) {
             when (currentOnboardingStep) {
                 7 -> listState.animateScrollToItem(4)
-                8 -> listState.animateScrollToItem(5)
             }
         }
     }
@@ -2359,36 +2425,386 @@ fun SettingsTab(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text(
-                text = "Cài đặt hệ thống".t(),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp, top = 8.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Cài đặt hệ thống".t(),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                val syncState by viewModel.syncState.collectAsStateWithLifecycle()
+                SyncStatusBadge(
+                    syncState = syncState,
+                    showLabel = true,
+                    onClick = {
+                        viewModel.syncAllDataNow(
+                            onProgress = { _, _ -> },
+                            onComplete = { success ->
+                                Toast.makeText(
+                                    context,
+                                    if (success) "Dữ liệu đã được đồng bộ trực tuyến an toàn!".t()
+                                    else "Đồng bộ hóa thất bại, vui lòng kiểm tra kết nối mạng".t(),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        )
+                    }
+                )
+            }
         }
 
-        // Section 1: Đăng nhập hoặc đăng ký
+        // Section 1: Tài khoản Google & Đồng bộ đám mây
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Đăng nhập tài khoản".t(), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Sao lưu cơ sở dữ liệu bán hàng đám mây".t(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            Toast.makeText(context, "Chức năng trực tuyến đang được triển khai".t(), Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("login_button")
-                    ) {
-                        Text("Đăng nhập hoặc Đăng ký".t(), fontWeight = FontWeight.Bold)
+            val userProfile by viewModel.currentUserProfile.collectAsStateWithLifecycle()
+            val firebaseUser by viewModel.currentFirebaseUser.collectAsStateWithLifecycle()
+            val currentAccount by viewModel.currentAppAccount.collectAsStateWithLifecycle()
+            val activeUserId = currentAccount?.userId ?: firebaseUser?.uid
+            val isLoggedIn = currentAccount != null
+            val credentialManager = remember { androidx.credentials.CredentialManager.create(context) }
+            var showSignOutConfirm by remember { mutableStateOf(false) }
+            var showSyncDeviceDataConfirm by remember { mutableStateOf(false) }
+            var isSyncingDeviceData by remember { mutableStateOf(false) }
+
+            if (showSyncDeviceDataConfirm) {
+                AlertDialog(
+                    onDismissRequest = { if (!isSyncingDeviceData) showSyncDeviceDataConfirm = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Đồng bộ dữ liệu trong máy".t(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Bạn có muốn đồng bộ toàn bộ dữ liệu đang có trên máy lên tài khoản đám mây không?".t(),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Toàn bộ dữ liệu trên máy sẽ được đồng bộ đầy đủ lên đám mây:\n• Sản phẩm & Tồn kho: Đồng bộ tất cả sản phẩm, hình ảnh, số lượng và giá (gộp tồn kho nếu trùng thông tin).\n• Hóa đơn bán hàng: Đồng bộ toàn bộ hóa đơn và các mặt hàng chi tiết.\n• Quản lý công nợ: Đồng bộ tất cả các đơn công nợ kèm lịch sử đã thanh toán nợ.\n• Đơn hàng nhập: Đồng bộ toàn bộ đơn nhập, danh sách mặt hàng và ảnh hóa đơn chứng từ.".t(),
+                                fontSize = 12.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 18.sp
+                            )
+                            if (isSyncingDeviceData) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    Text("Đang đồng bộ toàn bộ sản phẩm, hóa đơn, công nợ, đơn nhập...".t(), fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                isSyncingDeviceData = true
+                                viewModel.mergeDeviceDataIntoAccount(context) { success, message ->
+                                    isSyncingDeviceData = false
+                                    showSyncDeviceDataConfirm = false
+                                    Toast.makeText(context, message.t(), Toast.LENGTH_LONG).show()
+                                }
+                            },
+                            enabled = !isSyncingDeviceData,
+                            modifier = Modifier.testTag("confirm_sync_device_data_btn")
+                        ) {
+                            Text("Đồng ý đồng bộ".t(), fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showSyncDeviceDataConfirm = false },
+                            enabled = !isSyncingDeviceData,
+                            modifier = Modifier.testTag("cancel_sync_device_data_btn")
+                        ) {
+                            Text("Hủy".t())
+                        }
+                    }
+                )
+            }
+
+            if (showSignOutConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showSignOutConfirm = false },
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Logout,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Xác nhận đăng xuất".t(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        }
+                    },
+                    text = {
+                        Text(
+                            text = "Bạn có chắc chắn muốn đăng xuất tài khoản này không? Tất cả dữ liệu của bạn luôn được đồng bộ hóa an toàn trên đám mây và sẽ hiển thị đầy đủ trên mọi thiết bị khi bạn đăng nhập lại.".t(),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 18.sp
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showSignOutConfirm = false
+                                viewModel.signOutAndRestoreGuestData(
+                                    context = context,
+                                    credentialManager = credentialManager,
+                                    onComplete = { restored ->
+                                        val msg = if (restored) {
+                                            "Đã đăng xuất. Dữ liệu chưa đăng nhập trước đó đã được khôi phục trên máy.".t()
+                                        } else {
+                                            "Đã đăng xuất tài khoản".t()
+                                        }
+                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError
+                            ),
+                            modifier = Modifier.testTag("confirm_sign_out_button")
+                        ) {
+                            Text("Đăng xuất".t(), fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showSignOutConfirm = false },
+                            modifier = Modifier.testTag("cancel_sign_out_button")
+                        ) {
+                            Text("Hủy".t())
+                        }
+                    }
+                )
+            }
+
+            if (isLoggedIn) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val syncState by viewModel.syncState.collectAsStateWithLifecycle()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // User Avatar Photo or Google Icon
+                            val photoUrl = currentAccount?.avatarUrl?.takeIf { it.isNotBlank() }
+                                ?: userProfile?.photoURL
+                                ?: firebaseUser?.photoUrl?.toString()
+                            UserAvatarView(
+                                avatarUrl = photoUrl,
+                                size = 46.dp
+                            )
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                val displayName = currentAccount?.storeName?.takeIf { it.isNotBlank() }
+                                    ?: userProfile?.displayName
+                                    ?: firebaseUser?.displayName
+                                    ?: firebaseUser?.email?.substringBefore("@")
+                                    ?: "Tài khoản của tôi".t()
+                                val email = currentAccount?.email
+                                    ?: userProfile?.email
+                                    ?: firebaseUser?.email
+                                    ?: ""
+
+                                Text(
+                                    text = displayName,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (email.isNotBlank()) {
+                                    Text(
+                                        text = email,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            if (currentAccount != null) {
+                                IconButton(
+                                    onClick = { viewModel.selectSubScreen(SubScreen.ACCOUNT_SETTINGS) },
+                                    modifier = Modifier.testTag("account_settings_gear_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "Cài đặt tài khoản".t(),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { showSyncDeviceDataConfirm = true },
+                                modifier = Modifier
+                                    .weight(2f)
+                                    .height(42.dp)
+                                    .testTag("sync_device_data_button"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Đồng bộ dữ liệu đang có trong máy".t(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+
+                            OutlinedButton(
+                                onClick = { showSignOutConfirm = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
+                                    .testTag("sign_out_button"),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Logout,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(15.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Đăng xuất".t(),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Card khi chưa đăng nhập: Hiển thị mục Đăng nhập / Đăng ký
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(CircleShape),
+                                color = MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccountCircle,
+                                        contentDescription = "Tài khoản".t(),
+                                        modifier = Modifier.size(36.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(12.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Tài khoản & Đồng bộ".t(),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Chưa đăng nhập • Hoạt động ngoại tuyến".t(),
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Text(
+                            text = "Đăng nhập tài khoản để đồng bộ hóa dữ liệu tức thì trên nhiều thiết bị. Mọi thiết bị đăng nhập chung tài khoản sẽ thấy cùng một dữ liệu trong thời gian thực.".t(),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                            lineHeight = 17.sp
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Button(
+                            onClick = {
+                                viewModel.selectSubScreen(SubScreen.SIGN_IN)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("login_register_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        ) {
+                            Text(
+                                text = "Đăng nhập / Đăng ký".t(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
             }
@@ -2480,7 +2896,7 @@ fun SettingsTab(viewModel: MainViewModel) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(currentLang)
+                                    Text(currentLang.t())
                                 }
                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
                              }
@@ -2490,13 +2906,13 @@ fun SettingsTab(viewModel: MainViewModel) {
                             expanded = showLangDropdown,
                             onDismissRequest = { showLangDropdown = false }
                         ) {
-                            listOf("Tiếng Việt", "Tiếng Anh".t(), "Tiếng Trung Quốc".t(), "Khác".t()).forEach { lang ->
+                            listOf("Tiếng Việt", "Tiếng Anh", "Tiếng Trung Quốc").forEach { langKey ->
                                 DropdownMenuItem(
-                                    text = { Text(lang) },
+                                    text = { Text(langKey.t()) },
                                     onClick = {
-                                        viewModel.setLanguage(lang)
+                                        viewModel.setLanguage(langKey)
                                         showLangDropdown = false
-                                        val toastMsg = "Đã đổi thành ".t() + lang
+                                        val toastMsg = "Đã đổi thành ".t() + langKey.t()
                                         Toast.makeText(context, toastMsg, Toast.LENGTH_SHORT).show()
                                     }
                                 )
@@ -2506,59 +2922,6 @@ fun SettingsTab(viewModel: MainViewModel) {
                 }
             }
         }
-
-        // Section 5: "Cấp quyền cho tất cả"
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onGloballyPositioned { coords ->
-                        viewModel.registerOnboardingTarget("settings_permissions_card", coords.boundsInRoot())
-                    },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Cấp quyền hệ thống".t(), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text("Cho phép gửi thông báo hóa đơn, truy cập lịch và tải hình ảnh sản phẩm".t(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            val perms = mutableListOf<String>()
-                            // Calendar permissions
-                            perms.add(Manifest.permission.READ_CALENDAR)
-                            perms.add(Manifest.permission.WRITE_CALENDAR)
-                            // Storage & Notification permissions
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                perms.add(Manifest.permission.POST_NOTIFICATIONS)
-                                perms.add(Manifest.permission.READ_MEDIA_IMAGES)
-                            } else {
-                                perms.add(Manifest.permission.READ_EXTERNAL_STORAGE)
-                                perms.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                            }
-
-                            val ungranted = perms.filter { perm ->
-                                androidx.core.content.ContextCompat.checkSelfPermission(context, perm) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                            }
-
-                            if (ungranted.isNotEmpty()) {
-                                permLauncher.launch(ungranted.toTypedArray())
-                            } else {
-                                Toast.makeText(context, "Tất cả các quyền cần thiết đã được cấp".t(), Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("grant_permissions_button")
-                    ) {
-                        Text("Cấp quyền cho tất cả".t(), fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-
 
         // Section 5.3: Sao lưu & Khôi phục dữ liệu
         item {
@@ -2579,7 +2942,7 @@ fun SettingsTab(viewModel: MainViewModel) {
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB.".t(),
+                        text = "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập hàng, ảnh hóa đơn gốc, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB.".t(),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
@@ -2741,49 +3104,6 @@ fun SettingsTab(viewModel: MainViewModel) {
         }
 
 
-        // Section 5.4: Đồng bộ nhà cung cấp
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Đồng bộ nhà cung cấp".t(),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Đồng bộ hóa nhà cung cấp từ các đơn nhập hàng cũ".t(),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Button(
-                        onClick = {
-                            viewModel.syncAllSuppliersToProducts {
-                                Toast.makeText(context, "Đồng bộ thành công".t(), Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .testTag("sync_suppliers_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocalShipping,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Đồng bộ nhà cung cấp".t(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                }
-            }
-        }
-
 
         // Section 5.5: Dọn dẹp dữ liệu (Xóa tất cả dữ liệu)
         item {
@@ -2835,7 +3155,7 @@ fun SettingsTab(viewModel: MainViewModel) {
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Xem lại hướng dẫn chi tiết các tính năng cơ bản trong ứng dụng (Bán hàng, Hóa đơn & Báo cáo, Quản lý kho, Nhập hàng, Công nợ, Khách hàng, Cấp quyền, Sao lưu dữ liệu).".t(),
+                        text = "Xem lại hướng dẫn chi tiết các tính năng cơ bản trong ứng dụng (Bán hàng, Hóa đơn & Báo cáo, Quản lý kho, Nhập hàng, Công nợ, Khách hàng, Sao lưu dữ liệu).".t(),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
@@ -2859,8 +3179,9 @@ fun SettingsTab(viewModel: MainViewModel) {
             }
         }
 
-        // Section 6: Giới thiệu
+        // Section 6: Giới thiệu & Chính sách quyền riêng tư
         item {
+            var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
@@ -2872,7 +3193,29 @@ fun SettingsTab(viewModel: MainViewModel) {
                     Text("Phiên bản: ".t() + com.example.BuildConfig.VERSION_NAME, fontSize = 13.sp)
                     Text("Người sáng lập: Cường lâm".t(), fontSize = 13.sp)
                     Text("Liên hệ (Zalo): ".t() + "0964935879", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = { showPrivacyPolicyDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("privacy_policy_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PrivacyTip,
+                            contentDescription = "Chính sách quyền riêng tư".t(),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Chính sách quyền riêng tư & An toàn dữ liệu".t(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
+            }
+
+            if (showPrivacyPolicyDialog) {
+                PrivacyPolicyPopupDialog(
+                    onAgree = { showPrivacyPolicyDialog = false },
+                    onCancel = { showPrivacyPolicyDialog = false }
+                )
             }
         }
     }
@@ -2942,6 +3285,109 @@ fun SettingsTab(viewModel: MainViewModel) {
             }
         )
     }
+
+    pendingRestoreUri?.let { uri ->
+        val fileName = remember(uri) {
+            var name: String? = null
+            if (uri.scheme == "content") {
+                try {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) {
+                                name = cursor.getString(nameIndex)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    name = null
+                }
+            }
+            name ?: uri.lastPathSegment?.substringAfterLast('/') ?: "Proodos_Backup.json"
+        }
+
+        AlertDialog(
+            onDismissRequest = { pendingRestoreUri = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Restore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Xác nhận khôi phục dữ liệu".t(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Bạn có chắc chắn muốn khôi phục dữ liệu từ tệp này không?\n\nQuá trình này sẽ thay thế dữ liệu hiện tại trong hệ thống (mặt hàng, danh mục, hóa đơn, đơn nhập hàng...) bằng dữ liệu từ bản sao lưu đã chọn.".t(),
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Description,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = fileName,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val targetUri = uri
+                        pendingRestoreUri = null
+                        viewModel.importBackup(context, targetUri) { success, msg ->
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    modifier = Modifier.testTag("confirm_restore_backup_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Đồng ý khôi phục".t(), fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { pendingRestoreUri = null },
+                    modifier = Modifier.testTag("cancel_restore_backup_btn")
+                ) {
+                    Text("Hủy".t())
+                }
+            }
+        )
+    }
 }
 
 // ======================== SUBSCREENS IMPLEMENTATION ========================
@@ -2951,11 +3397,11 @@ fun SettingsTab(viewModel: MainViewModel) {
 @Composable
 fun CartScreen(viewModel: MainViewModel) {
     val cart by viewModel.cart.collectAsStateWithLifecycle()
-    val savedStoreName by viewModel.storeName.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
 
-    var storeNameField by remember { mutableStateOf(savedStoreName) }
+    // Tên khách hàng: Lưu giữ khi thoát ra màn hình bán hàng hoặc thoát app đột ngột, chỉ xóa khi thanh toán xong hoặc người dùng bấm xóa
+    val customerNameField by viewModel.cartCustomerName.collectAsStateWithLifecycle()
     var itemToDelete by remember { mutableStateOf<CartItem?>(null) }
     var swipedItemId by remember { mutableStateOf<Int?>(null) }
     var showCheckoutSuccess by remember { mutableStateOf(false) }
@@ -2964,35 +3410,23 @@ fun CartScreen(viewModel: MainViewModel) {
 
     val invoices by viewModel.invoices.collectAsStateWithLifecycle()
     val previousCustomers = remember(invoices) {
-        invoices.map { it.invoice.storeName.trim() }
+        invoices.map { it.invoice.displayCustomerName }
             .filter { it.isNotEmpty() }
-            .distinct()
+            .distinctBy { it.lowercase() }
             .sorted()
     }
     var isFocused by remember { mutableStateOf(false) }
     var showSuggestions by remember { mutableStateOf(true) }
 
-    val filteredSuggestions = remember(storeNameField, previousCustomers) {
-        if (storeNameField.isBlank()) {
+    val filteredSuggestions = remember(customerNameField, previousCustomers) {
+        if (customerNameField.isBlank()) {
             emptyList()
         } else {
             previousCustomers.filter { customer ->
-                customer.contains(storeNameField, ignoreCase = true) &&
-                        !customer.equals(storeNameField, ignoreCase = true)
+                customer.contains(customerNameField, ignoreCase = true) &&
+                        !customer.equals(customerNameField, ignoreCase = true)
             }
         }
-    }
-
-    LaunchedEffect(savedStoreName) {
-        if (storeNameField != savedStoreName) {
-            storeNameField = savedStoreName
-        }
-    }
-
-    // Save storeName to shared prefs dynamically as typed
-    fun onStoreNameChanged(name: String) {
-        storeNameField = name
-        viewModel.setStoreName(name)
     }
 
     BackHandler {
@@ -3077,10 +3511,10 @@ fun CartScreen(viewModel: MainViewModel) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Box(modifier = Modifier.fillMaxWidth()) {
                             OutlinedTextField(
-                                value = storeNameField,
+                                value = customerNameField,
                                 onValueChange = {
-                                    val formatted = it.capitalizeWords()
-                                    onStoreNameChanged(formatted)
+                                    val newName = it.capitalizeWords()
+                                    viewModel.setCartCustomerName(newName)
                                     showSuggestions = true
                                 },
                                 keyboardOptions = KeyboardOptions(
@@ -3088,6 +3522,13 @@ fun CartScreen(viewModel: MainViewModel) {
                                 ),
                                 singleLine = true,
                                 placeholder = { Text("Tên khách hàng...".t()) },
+                                trailingIcon = {
+                                    if (customerNameField.isNotEmpty()) {
+                                        IconButton(onClick = { viewModel.setCartCustomerName("") }) {
+                                            Icon(Icons.Default.Clear, contentDescription = "Xóa".t())
+                                        }
+                                    }
+                                },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("store_name_input")
@@ -3106,8 +3547,9 @@ fun CartScreen(viewModel: MainViewModel) {
                                     DropdownMenuItem(
                                         text = { Text(customer) },
                                         onClick = {
-                                            onStoreNameChanged(customer)
+                                            viewModel.setCartCustomerName(customer)
                                             showSuggestions = false
+                                            focusManager.clearFocus()
                                         }
                                     )
                                 }
@@ -3219,7 +3661,7 @@ fun CartScreen(viewModel: MainViewModel) {
 
                             Button(
                                 onClick = {
-                                    if (storeNameField.isBlank()) {
+                                    if (customerNameField.isBlank()) {
                                         Toast.makeText(context, "Vui lòng nhập tên khách hàng".t(), Toast.LENGTH_SHORT).show()
                                     } else {
                                         showPaymentDialog = true
@@ -3313,12 +3755,12 @@ fun CartScreen(viewModel: MainViewModel) {
                             onClick = {
                                 showPaymentDialog = false
                                 viewModel.checkout(
-                                    customerName = storeNameField.trim(),
+                                    customerName = customerNameField.trim(),
                                     customerPhone = null,
                                     paymentMethod = selectedPaymentMethod
                                 ) {
                                     showCheckoutSuccess = true
-                                    onStoreNameChanged("")
+                                    viewModel.setCartCustomerName("")
                                 }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -3915,19 +4357,11 @@ fun saveDebtCalendarEvent(
             )
             
             try {
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        android.app.AlarmManager.RTC_WAKEUP,
-                        deleteTimeMillis,
-                        pendingIntent
-                    )
-                } else {
-                    alarmManager.set(
-                        android.app.AlarmManager.RTC_WAKEUP,
-                        deleteTimeMillis,
-                        pendingIntent
-                    )
-                }
+                alarmManager.set(
+                    android.app.AlarmManager.RTC_WAKEUP,
+                    deleteTimeMillis,
+                    pendingIntent
+                )
             } catch (e: SecurityException) {
                 alarmManager.set(
                     android.app.AlarmManager.RTC_WAKEUP,
@@ -4004,6 +4438,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
             val displayedProfit = remember(invoice.profit, costAmount) {
                 invoice.profit - costAmount
             }
+            var isProfitVisible by remember(invoice.id) { mutableStateOf(false) }
 
             var isDebtSale by remember { mutableStateOf(prefs.getBoolean(debtKey, false)) }
             val paymentMethodKey = "invoice_payment_method_${invoice.id}"
@@ -4109,7 +4544,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Khách hàng: ".t() + (invoice.customerName ?: invoice.storeName),
+                                text = "Khách hàng: ".t() + invoice.displayCustomerName.ifBlank { "Khách lẻ".t() },
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.primary
@@ -4139,7 +4574,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                 modifier = Modifier.clickable {
                                     if (swipedItemId != null) swipedItemId = null
                                     paymentMethod = "TM"
-                                    prefs.edit().putString(paymentMethodKey, "TM").apply()
+                                    viewModel.updateInvoiceMetadata(invoiceId = invoice.id, paymentMethod = "TM")
                                 }
                             )
                             Box(
@@ -4155,7 +4590,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                         if (swipedItemId != null) swipedItemId = null
                                         val next = if (paymentMethod == "TM") "CK" else "TM"
                                         paymentMethod = next
-                                        prefs.edit().putString(paymentMethodKey, next).apply()
+                                        viewModel.updateInvoiceMetadata(invoiceId = invoice.id, paymentMethod = next)
                                     }
                                     .padding(2.dp),
                                 contentAlignment = if (paymentMethod == "CK") Alignment.CenterEnd else Alignment.CenterStart
@@ -4176,7 +4611,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                 modifier = Modifier.clickable {
                                     if (swipedItemId != null) swipedItemId = null
                                     paymentMethod = "CK"
-                                    prefs.edit().putString(paymentMethodKey, "CK").apply()
+                                    viewModel.updateInvoiceMetadata(invoiceId = invoice.id, paymentMethod = "CK")
                                 }
                             )
                         }
@@ -4191,6 +4626,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                 item = item,
                                 isSwiped = swipedItemId == item.id,
                                 hasAnySwiped = swipedItemId != null,
+                                isProfitVisible = isProfitVisible,
                                 onSwipeChange = { swiped ->
                                     if (swiped) {
                                         swipedItemId = item.id
@@ -4300,28 +4736,53 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                         Divider(modifier = Modifier.padding(vertical = 10.dp))
 
                         val profitColor = if (displayedProfit >= 0) Color(0xFF4CAF50) else Color.Red
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "LỢI NHUẬN (TIỀN LÃI):".t(),
-                                fontWeight = FontWeight.Bold,
-                                color = profitColor
-                            )
-                            // Profit Highlight color and tag decoration
-                            Box(
+                        if (isProfitVisible) {
+                            Row(
                                 modifier = Modifier
-                                    .background(profitColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { isProfitVisible = false }
+                                    .padding(vertical = 4.dp)
+                                    .testTag("row_invoice_profit"),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = formatCurrency(displayedProfit),
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 17.sp,
+                                    "LỢI NHUẬN (TIỀN LÃI):".t(),
+                                    fontWeight = FontWeight.Bold,
                                     color = profitColor
                                 )
+                                Box(
+                                    modifier = Modifier
+                                        .background(profitColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = formatCurrency(displayedProfit),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 17.sp,
+                                        color = profitColor
+                                    )
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { isProfitVisible = true },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .testTag("btn_toggle_invoice_profit")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.VisibilityOff,
+                                        contentDescription = "Hiện lãi".t(),
+                                        tint = Color(0xFF4CAF50)
+                                    )
+                                }
                             }
                         }
                     }
@@ -4362,7 +4823,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                         showTurnOffDebtConfirm = true
                                     } else {
                                         isDebtSale = true
-                                        prefs.edit().putBoolean(debtKey, true).apply()
+                                        viewModel.updateInvoiceMetadata(invoiceId = invoice.id, isDebt = true)
                                     }
                                 },
                                 colors = SwitchDefaults.colors(
@@ -4407,7 +4868,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                                     set(java.util.Calendar.SECOND, 0)
                                                     set(java.util.Calendar.MILLISECOND, 0)
                                                 }
-                                                prefs.edit().putLong(timeKey, cal.timeInMillis).apply()
+                                                viewModel.updateInvoiceMetadata(invoiceId = invoice.id, debtTime = cal.timeInMillis)
                                             },
                                             selectedHour,
                                             selectedMinute,
@@ -4447,7 +4908,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                                     set(java.util.Calendar.SECOND, 0)
                                                     set(java.util.Calendar.MILLISECOND, 0)
                                                 }
-                                                prefs.edit().putLong(timeKey, cal.timeInMillis).apply()
+                                                viewModel.updateInvoiceMetadata(invoiceId = invoice.id, debtTime = cal.timeInMillis)
                                             },
                                             selectedYear,
                                             selectedMonth,
@@ -4487,11 +4948,12 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                         
                                         saveDebtCalendarEvent(
                                             context = context,
-                                            customerName = invoice.customerName ?: invoice.storeName,
+                                            customerName = invoice.displayCustomerName.ifBlank { "Khách lẻ".t() },
                                             invoiceId = invoice.id,
                                             timeMillis = targetCal.timeInMillis,
                                             onSuccess = { newId ->
                                                 prefs.edit().putLong(eventIdKey, newId).apply()
+                                                viewModel.updateInvoiceMetadata(invoice.id, calendarEventId = newId)
                                                 Toast.makeText(context, "Đã lưu lịch hẹn thanh toán vào lịch máy!".t(), Toast.LENGTH_LONG).show()
                                             },
                                             onFailure = { err ->
@@ -4557,7 +5019,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                 checked = isCostActive,
                                 onCheckedChange = { checked ->
                                     isCostActive = checked
-                                    prefs.edit().putBoolean(costActiveKey, checked).apply()
+                                    viewModel.updateInvoiceMetadata(invoiceId = invoice.id, costActive = checked)
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = MaterialTheme.colorScheme.primary,
@@ -4577,7 +5039,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                                 onValueChange = { input ->
                                     if (input.isEmpty() || input.all { it.isDigit() }) {
                                         costAmountStr = input
-                                        prefs.edit().putString(costAmountKey, input).apply()
+                                        viewModel.updateInvoiceMetadata(invoiceId = invoice.id, costAmount = input)
                                     }
                                 },
                                 label = { Text("Số tiền chi phí phát sinh".t()) },
@@ -4655,7 +5117,7 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                         TextButton(
                             onClick = {
                                 isDebtSale = false
-                                prefs.edit().putBoolean(debtKey, false).apply()
+                                viewModel.updateInvoiceMetadata(invoiceId = invoice.id, isDebt = false)
                                 showTurnOffDebtConfirm = false
                             },
                             modifier = Modifier.testTag("confirm_turn_off_debt_btn")
@@ -4697,6 +5159,26 @@ fun InvoiceDetailScreen(viewModel: MainViewModel) {
                         ) {
                             Text(currentItem.productName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             
+                            val targetProd = products.find { it.id == currentItem.productId }
+                            val effectiveImportPrice = if (currentItem.importPrice > 0) currentItem.importPrice else (targetProd?.importPrice ?: 0.0)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Giá nhập: ".t(),
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = formatCurrency(effectiveImportPrice),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2E7D32),
+                                    modifier = Modifier.testTag("txt_edit_item_import_price")
+                                )
+                            }
+
                             OutlinedTextField(
                                 value = TextFieldValue(text = priceInput, selection = TextRange(priceInput.length)),
                                 onValueChange = { textFieldValue ->
@@ -4814,6 +5296,7 @@ fun SwipeableInvoiceItemCard(
     item: InvoiceItem,
     isSwiped: Boolean,
     hasAnySwiped: Boolean = false,
+    isProfitVisible: Boolean = false,
     onSwipeChange: (Boolean) -> Unit,
     onResetSwipe: () -> Unit,
     onResetAllSwipes: () -> Unit = onResetSwipe,
@@ -4984,13 +5467,15 @@ fun SwipeableInvoiceItemCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    val itemProfit = (item.sellPrice - item.importPrice) * item.quantity
-                    Text(
-                        "Lãi: ".t() + formatCurrency(itemProfit),
-                        fontSize = 11.sp,
-                        color = if (itemProfit >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    if (isProfitVisible) {
+                        val itemProfit = (item.sellPrice - item.importPrice) * item.quantity
+                        Text(
+                            "Lãi: ".t() + formatCurrency(itemProfit),
+                            fontSize = 11.sp,
+                            color = if (itemProfit >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
@@ -5067,7 +5552,8 @@ fun ProductsListScreen(viewModel: MainViewModel) {
                 AnimatedVisibility(visible = listState.firstVisibleItemIndex == 0) {
                     OutlinedTextField(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = { searchQuery = it.capitalizeWords() },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -5245,7 +5731,7 @@ fun CreateProductScreen(viewModel: MainViewModel) {
 
     // Media chooser launcher image picker
     val imageLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             rawSelectedUri = it
@@ -5313,7 +5799,8 @@ fun CreateProductScreen(viewModel: MainViewModel) {
             item {
                 TextField(
                     value = nameVal,
-                    onValueChange = { nameVal = it },
+                    onValueChange = { nameVal = it.capitalizeWords() },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     label = { Text("Tên mặt hàng".t()) },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
@@ -5330,7 +5817,8 @@ fun CreateProductScreen(viewModel: MainViewModel) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     TextField(
                         value = categoryInputText,
-                        onValueChange = { categoryInputText = it },
+                        onValueChange = { categoryInputText = it.capitalizeWords() },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         label = { Text("Danh mục (mặc định 'Không danh mục')".t()) },
                         placeholder = { Text("Chọn hoặc nhập danh mục mới...".t()) },
                         trailingIcon = {
@@ -5479,7 +5967,7 @@ fun CreateProductScreen(viewModel: MainViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
-                            onClick = { imageLauncher.launch("image/*") },
+                            onClick = { imageLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.testTag("select_image_btn")
                         ) {
@@ -5575,7 +6063,7 @@ fun EditProductScreen(viewModel: MainViewModel) {
 
     // Media chooser launcher image picker
     val imageLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             rawSelectedUri = it
@@ -5644,7 +6132,8 @@ fun EditProductScreen(viewModel: MainViewModel) {
             item {
                 TextField(
                     value = nameVal,
-                    onValueChange = { nameVal = it },
+                    onValueChange = { nameVal = it.capitalizeWords() },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     label = { Text("Tên mặt hàng".t()) },
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
@@ -5672,7 +6161,8 @@ fun EditProductScreen(viewModel: MainViewModel) {
                     ) {
                         TextField(
                             value = categoryInputText,
-                            onValueChange = { categoryInputText = it },
+                            onValueChange = { categoryInputText = it.capitalizeWords() },
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                             label = { Text("Danh mục".t(), fontSize = 14.sp) },
                             placeholder = { Text("Chọn hoặc nhập danh mục mới...".t(), fontSize = 14.sp) },
                             trailingIcon = {
@@ -5723,8 +6213,9 @@ fun EditProductScreen(viewModel: MainViewModel) {
                         TextField(
                             value = supplierInputText,
                             onValueChange = { 
-                                supplierInputText = it 
+                                supplierInputText = it.capitalizeWords() 
                             },
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                             label = { Text("Nhà cung cấp".t(), fontSize = 14.sp) },
                             trailingIcon = {
                                 IconButton(onClick = { expandedSupDropdown = !expandedSupDropdown }) {
@@ -5868,7 +6359,7 @@ fun EditProductScreen(viewModel: MainViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Button(
-                            onClick = { imageLauncher.launch("image/*") },
+                            onClick = { imageLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             modifier = Modifier.testTag("select_edit_image_btn")
                         ) {
@@ -6362,7 +6853,8 @@ fun CategoriesListScreen(viewModel: MainViewModel) {
             text = {
                 OutlinedTextField(
                     value = editCategoryNameField,
-                    onValueChange = { editCategoryNameField = it },
+                    onValueChange = { editCategoryNameField = it.capitalizeWords() },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     label = { Text("Tên danh mục".t()) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("edit_category_name_input")
@@ -6454,7 +6946,8 @@ fun CreateCategoryScreen(viewModel: MainViewModel) {
             // UI Input: Kiểu underline (transparent background filled text field on Compose)
             TextField(
                 value = categoryNameVal,
-                onValueChange = { categoryNameVal = it },
+                onValueChange = { categoryNameVal = it.capitalizeWords() },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 label = { Text("Tên danh mục".t()) },
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = Color.Transparent,
@@ -6534,6 +7027,8 @@ fun CreateCategoryScreen(viewModel: MainViewModel) {
 @Composable
 fun CustomersListScreen(viewModel: MainViewModel) {
     val invoices by viewModel.invoices.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("proodos_prefs", Context.MODE_PRIVATE) }
     var searchQuery by remember { mutableStateOf("") }
     var expandedCustomerName by remember { mutableStateOf<String?>(null) }
     var showRenameDialogForCustomer by remember { mutableStateOf<String?>(null) }
@@ -6551,8 +7046,37 @@ fun CustomersListScreen(viewModel: MainViewModel) {
             }
     }
 
-    val customerGroups = remember(invoices) {
-        invoices.groupBy { it.invoice.storeName.trim() }
+    var prefsRefreshTrigger by remember { mutableStateOf(0) }
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key.startsWith("invoice_debt")) {
+                prefsRefreshTrigger++
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    val customerGroups = remember(invoices, prefsRefreshTrigger) {
+        val groupedByKey = linkedMapOf<String, MutableList<InvoiceWithItems>>()
+        val displayNamesByKey = mutableMapOf<String, String>()
+        for (invWithItems in invoices) {
+            val rawName = invWithItems.invoice.displayCustomerName.trim().ifBlank { "Khách lẻ".t() }
+            val key = rawName.lowercase()
+            if (!displayNamesByKey.containsKey(key)) {
+                displayNamesByKey[key] = rawName
+            }
+            groupedByKey.getOrPut(key) { mutableListOf() }.add(invWithItems)
+        }
+        groupedByKey.entries.associate { (key, list) ->
+            val sortedList = list.sortedWith(
+                compareByDescending<InvoiceWithItems> { it.invoice.timestamp }
+                    .thenByDescending { it.invoice.id }
+            )
+            (displayNamesByKey[key] ?: key) to sortedList
+        }
     }
 
     val filteredCustomers = remember(customerGroups, searchQuery) {
@@ -6774,8 +7298,36 @@ fun CustomersListScreen(viewModel: MainViewModel) {
                                         modifier = Modifier.padding(bottom = 8.dp)
                                     )
 
-                                    listInvoices.forEach { invoiceWithItems ->
-                                        CustomerInvoiceCard(invoiceWithItems, searchQuery)
+                                    val totalCustomerDebt = remember(listInvoices, prefsRefreshTrigger) {
+                                        listInvoices.sumOf { combined ->
+                                            if (prefs.getSafeBoolean("invoice_debt_${combined.invoice.id}", false)) {
+                                                val paidAmt = prefs.getSafeFloat("invoice_debt_paid_${combined.invoice.id}", 0f).toDouble()
+                                                maxOf(0.0, combined.invoice.totalAmount - paidAmt)
+                                            } else {
+                                                0.0
+                                            }
+                                        }
+                                    }
+                                    val hasCustomerDebt = totalCustomerDebt > 0.0
+
+                                    listInvoices.forEachIndexed { index, invoiceWithItems ->
+                                        val isLatestInvoice = index == 0
+                                        val isOrderDebtEnabled = prefs.getSafeBoolean("invoice_debt_${invoiceWithItems.invoice.id}", false)
+                                        val displayedCustomerDebt = if (isLatestInvoice && hasCustomerDebt) {
+                                            if (isOrderDebtEnabled) {
+                                                maxOf(0.0, totalCustomerDebt - invoiceWithItems.invoice.totalAmount)
+                                            } else {
+                                                totalCustomerDebt
+                                            }
+                                        } else {
+                                            0.0
+                                        }
+                                        CustomerInvoiceCard(
+                                            invoiceWithItems = invoiceWithItems,
+                                            searchQuery = searchQuery,
+                                            customerDebt = displayedCustomerDebt,
+                                            showDebtSection = isLatestInvoice && hasCustomerDebt
+                                        )
                                     }
                                 }
                             }
@@ -6983,7 +7535,8 @@ fun InventoryManagementScreen(viewModel: MainViewModel) {
             AnimatedVisibility(visible = listState.firstVisibleItemIndex == 0) {
                 OutlinedTextField(
                     value = searchQuery,
-                    onValueChange = { searchQuery = it },
+                    onValueChange = { searchQuery = it.capitalizeWords() },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -7154,10 +7707,19 @@ fun DebtManagementScreen(viewModel: MainViewModel) {
             (combined.invoice.totalAmount - prefs.getSafeFloat("invoice_debt_paid_${combined.invoice.id}", 0f).toDouble() > 0.0)
         }
         
-        // Group by customerName (fallback to storeName or default name if blank)
-        val groupedMap = activeDebts.groupBy { combined ->
-            val name = combined.invoice.customerName ?: combined.invoice.storeName
-            if (name.isNullOrBlank()) "Khách lẻ".t() else name
+        // Group by displayCustomerName (case-insensitive, fallback to default name if blank)
+        val groupedByKey = linkedMapOf<String, MutableList<InvoiceWithItems>>()
+        val displayNamesByKey = mutableMapOf<String, String>()
+        for (combined in activeDebts) {
+            val rawName = combined.invoice.displayCustomerName.trim().ifBlank { "Khách lẻ".t() }
+            val key = rawName.lowercase()
+            if (!displayNamesByKey.containsKey(key)) {
+                displayNamesByKey[key] = rawName
+            }
+            groupedByKey.getOrPut(key) { mutableListOf() }.add(combined)
+        }
+        val groupedMap = groupedByKey.entries.associate { (key, list) ->
+            (displayNamesByKey[key] ?: key) to list.toList()
         }
         
         groupedMap.map { (customerName, list) ->
@@ -7180,9 +7742,7 @@ fun DebtManagementScreen(viewModel: MainViewModel) {
                 totalAmount = totalAmt
             )
         }.filter { it.totalAmount > 0.0 }
-        .sortedBy { group ->
-            if (group.nearestScheduledTime == 0L) Long.MAX_VALUE else group.nearestScheduledTime
-        }
+        .sortedByDescending { it.totalAmount }
     }
 
     // Grand total of all active debt invoices
@@ -7483,10 +8043,25 @@ fun DebtManagementScreen(viewModel: MainViewModel) {
                                             if (remainingPayment >= netDebt) {
                                                 editor.putFloat("invoice_debt_paid_${invoice.id}", invoice.totalAmount.toFloat())
                                                 editor.putBoolean("invoice_debt_${invoice.id}", false)
+                                                viewModel.updateInvoiceMetadata(
+                                                    invoiceId = invoice.id,
+                                                    paymentMethod = method,
+                                                    isDebt = false,
+                                                    debtPaid = invoice.totalAmount,
+                                                    debtPaidTm = if (method == "TM") (prefs.getSafeFloat("invoice_debt_paid_tm_${invoice.id}", 0f) + paymentAmountAdded).toDouble() else null,
+                                                    debtPaidCk = if (method == "CK") (prefs.getSafeFloat("invoice_debt_paid_ck_${invoice.id}", 0f) + paymentAmountAdded).toDouble() else null
+                                                )
                                                 remainingPayment -= netDebt
                                             } else {
                                                 val newPaid = currentPaid + remainingPayment
                                                 editor.putFloat("invoice_debt_paid_${invoice.id}", newPaid.toFloat())
+                                                viewModel.updateInvoiceMetadata(
+                                                    invoiceId = invoice.id,
+                                                    paymentMethod = method,
+                                                    debtPaid = newPaid,
+                                                    debtPaidTm = if (method == "TM") (prefs.getSafeFloat("invoice_debt_paid_tm_${invoice.id}", 0f) + paymentAmountAdded).toDouble() else null,
+                                                    debtPaidCk = if (method == "CK") (prefs.getSafeFloat("invoice_debt_paid_ck_${invoice.id}", 0f) + paymentAmountAdded).toDouble() else null
+                                                )
                                                 remainingPayment = 0.0
                                             }
                                         }
@@ -7704,7 +8279,17 @@ fun DebtManagementScreen(viewModel: MainViewModel) {
                                     .putFloat("invoice_debt_paid_${invoice.id}", 0f)
                                     .putFloat("invoice_debt_paid_tm_${invoice.id}", 0f)
                                     .putFloat("invoice_debt_paid_ck_${invoice.id}", 0f)
+                                    .putLong("invoice_calendar_event_${invoice.id}", -1L)
                                     .apply()
+
+                                viewModel.updateInvoiceMetadata(
+                                    invoiceId = invoice.id,
+                                    isDebt = false,
+                                    debtPaid = 0.0,
+                                    debtPaidTm = 0.0,
+                                    debtPaidCk = 0.0,
+                                    calendarEventId = -1L
+                                )
                                 
                                 // Try to delete calendar event if one was stored
                                 val eventId = prefs.getSafeLong("invoice_calendar_event_${invoice.id}", -1L)
@@ -8690,8 +9275,8 @@ fun CreateImportOrderDialog(
         }
     }
 
-    val manualCashAdjustment = prefs.getSafeFloat("manual_cash_adjustment", 0f).toDouble()
-    val manualAccountAdjustment = prefs.getSafeFloat("manual_account_adjustment", 0f).toDouble()
+    val manualCashAdjustment by viewModel.manualCashAdjustment.collectAsStateWithLifecycle()
+    val manualAccountAdjustment by viewModel.manualAccountAdjustment.collectAsStateWithLifecycle()
 
     val finalTienMat = tongTienMat + manualCashAdjustment
     val finalTaiKhoan = tongTaiKhoan + manualAccountAdjustment
@@ -8729,10 +9314,9 @@ fun CreateImportOrderDialog(
         val currentManualCash = prefs.getSafeFloat("manual_cash_adjustment", 0f).toDouble()
         val currentManualAccount = prefs.getSafeFloat("manual_account_adjustment", 0f).toDouble()
 
-        prefs.edit()
-            .putFloat("manual_cash_adjustment", (currentManualCash - cashPaid).toFloat())
-            .putFloat("manual_account_adjustment", (currentManualAccount - transferPaid).toFloat())
-            .apply()
+        val newCash = currentManualCash - cashPaid
+        val newAcc = currentManualAccount - transferPaid
+        viewModel.syncCashBookAdjustments(newCash, newAcc)
 
         val supplier = if (supplierName.isBlank()) "Nhà cung cấp".t() else supplierName
         viewModel.createImportOrder(
@@ -8748,16 +9332,9 @@ fun CreateImportOrderDialog(
         )
     }
 
-    LaunchedEffect(orderTotal, finalTienMat) {
-        val maxCash = maxOf(0.0, finalTienMat)
-        if (orderTotal <= maxCash) {
-            cashInput = formatDotsInput(orderTotal.toLong().toString())
-            bankTransferInput = "0"
-        } else {
-            cashInput = formatDotsInput(maxCash.toLong().toString())
-            val remaining = maxOf(0.0, orderTotal - maxCash)
-            bankTransferInput = formatDotsInput(remaining.toLong().toString())
-        }
+    LaunchedEffect(orderTotal) {
+        cashInput = formatDotsInput(orderTotal.toLong().toString())
+        bankTransferInput = "0"
     }
 
     Dialog(
@@ -8813,9 +9390,10 @@ fun CreateImportOrderDialog(
                         OutlinedTextField(
                             value = supplierName,
                             onValueChange = { 
-                                supplierName = it
+                                supplierName = it.capitalizeWords()
                                 supplierDropdownExpanded = true
                             },
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                             label = { Text("Tên nhà cung cấp".t()) },
                             placeholder = { Text("Nhập tên nhà cung cấp...".t()) },
                             modifier = Modifier
@@ -9037,12 +9615,14 @@ fun CreateImportOrderDialog(
                         OutlinedTextField(
                             value = TextFieldValue(text = cashInput, selection = TextRange(cashInput.length)),
                             onValueChange = { textFieldValue ->
-                                val newValue = textFieldValue.text
-                                val cleanValue = newValue.replace(".", "")
-                                val cashVal = cleanValue.toDoubleOrNull() ?: 0.0
-                                cashInput = formatDotsInput(cleanValue)
-                                val transferVal = maxOf(0.0, orderTotal - cashVal)
-                                bankTransferInput = formatDotsInput(transferVal.toLong().toString())
+                                val cleanValue = textFieldValue.text.replace(".", "").filter { it.isDigit() }
+                                val currentClean = cashInput.replace(".", "").filter { it.isDigit() }
+                                if (cleanValue != currentClean) {
+                                    val cashVal = cleanValue.toDoubleOrNull() ?: 0.0
+                                    cashInput = if (cleanValue.isEmpty()) "" else formatDotsInput(cleanValue)
+                                    val transferVal = maxOf(0.0, orderTotal - cashVal)
+                                    bankTransferInput = formatDotsInput(transferVal.toLong().toString())
+                                }
                             },
                             label = { Text("Tiền mặt".t()) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -9055,12 +9635,14 @@ fun CreateImportOrderDialog(
                         OutlinedTextField(
                             value = TextFieldValue(text = bankTransferInput, selection = TextRange(bankTransferInput.length)),
                             onValueChange = { textFieldValue ->
-                                val newValue = textFieldValue.text
-                                val cleanValue = newValue.replace(".", "")
-                                val transferVal = cleanValue.toDoubleOrNull() ?: 0.0
-                                bankTransferInput = formatDotsInput(cleanValue)
-                                val cashVal = maxOf(0.0, orderTotal - transferVal)
-                                cashInput = formatDotsInput(cashVal.toLong().toString())
+                                val cleanValue = textFieldValue.text.replace(".", "").filter { it.isDigit() }
+                                val currentClean = bankTransferInput.replace(".", "").filter { it.isDigit() }
+                                if (cleanValue != currentClean) {
+                                    val transferVal = cleanValue.toDoubleOrNull() ?: 0.0
+                                    bankTransferInput = if (cleanValue.isEmpty()) "" else formatDotsInput(cleanValue)
+                                    val cashVal = maxOf(0.0, orderTotal - transferVal)
+                                    cashInput = formatDotsInput(cashVal.toLong().toString())
+                                }
                             },
                             label = { Text("Chuyển khoản".t()) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -9273,6 +9855,7 @@ fun AddProductToImportDialog(
     var selectedProduct by remember { mutableStateOf<Product?>(null) }
     var quantityText by remember { mutableStateOf("1") }
     var importPriceText by remember { mutableStateOf("") }
+    var isCreatedJustNow by remember { mutableStateOf(false) }
 
     var searchQuery by remember { mutableStateOf("") }
     var dropdownExpanded by remember { mutableStateOf(false) }
@@ -9282,7 +9865,7 @@ fun AddProductToImportDialog(
     val quantityFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(selectedProduct) {
-        if (selectedProduct != null) {
+        if (selectedProduct != null && !isCreatedJustNow) {
             kotlinx.coroutines.delay(100)
             try {
                 quantityFocusRequester.requestFocus()
@@ -9373,8 +9956,9 @@ fun AddProductToImportDialog(
                                     selectedProduct = null
                                     importPriceText = ""
                                 }
-                                searchQuery = it
+                                searchQuery = it.capitalizeWords()
                             },
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                             placeholder = { Text("Tìm tên sản phẩm...".t()) },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -9428,6 +10012,7 @@ fun AddProductToImportDialog(
                                                 val priceToFill = prevPrice ?: prod.importPrice
                                                 importPriceText = formatDotsInput(priceToFill.toLong().toString())
                                                 searchQuery = prod.name
+                                                isCreatedJustNow = false
                                             },
                                         colors = CardDefaults.cardColors(
                                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
@@ -9477,7 +10062,6 @@ fun AddProductToImportDialog(
                 if (selectedProduct != null) {
                     val prod = selectedProduct!!
                     
-                    var wasQuantityFocused by remember { mutableStateOf(false) }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -9490,13 +10074,7 @@ fun AddProductToImportDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .focusRequester(quantityFocusRequester)
-                                .testTag("import_quantity_input")
-                                .onFocusChanged { focusState ->
-                                    if (focusState.isFocused && !wasQuantityFocused) {
-                                        quantityText = ""
-                                    }
-                                    wasQuantityFocused = focusState.isFocused
-                                },
+                                .testTag("import_quantity_input"),
                             singleLine = true
                         )
 
@@ -9591,7 +10169,9 @@ fun AddProductToImportDialog(
             onDismiss = { showCreateNewProductDialog = false },
             onProductCreated = { newProd, qty ->
                 selectedProduct = newProd
-                quantityText = qty.toString()
+                val validQty = if (qty > 0) qty else 1
+                quantityText = validQty.toString()
+                isCreatedJustNow = true
                 importPriceText = formatDotsInput(newProd.importPrice.toLong().toString())
                 searchQuery = newProd.name
                 showCreateNewProductDialog = false
@@ -9622,8 +10202,19 @@ fun CreateNewProductInImportDialog(
 
     var expandedCatDropdown by remember { mutableStateOf(false) }
 
+    val filteredCategories = remember(categoryInputText, categories) {
+        val q = removeVietnameseAccents(categoryInputText).trim()
+        if (q.isEmpty()) {
+            categories
+        } else {
+            categories.filter { cat ->
+                removeVietnameseAccents(cat.name).contains(q) || cat.name.contains(categoryInputText.trim(), ignoreCase = true)
+            }
+        }
+    }
+
     val imageLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             rawSelectedUri = it
@@ -9645,44 +10236,126 @@ fun CreateNewProductInImportDialog(
             ) {
                 OutlinedTextField(
                     value = nameVal,
-                    onValueChange = { nameVal = it },
+                    onValueChange = { nameVal = it.capitalizeWords() },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     label = { Text("Tên mặt hàng *".t()) },
                     placeholder = { Text("Nhập tên mặt hàng...".t()) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
 
-                Box(modifier = Modifier.fillMaxWidth()) {
+                var catFieldWidth by remember { mutableIntStateOf(0) }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { coords ->
+                            catFieldWidth = coords.size.width
+                        }
+                ) {
                     OutlinedTextField(
                         value = categoryInputText,
                         onValueChange = {
-                            categoryInputText = it
+                            categoryInputText = it.capitalizeWords()
                             expandedCatDropdown = true
                         },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                         label = { Text("Danh mục".t()) },
                         placeholder = { Text("Chọn hoặc nhập danh mục mới...".t()) },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("new_product_category_input"),
                         trailingIcon = {
                             IconButton(onClick = { expandedCatDropdown = !expandedCatDropdown }) {
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Chọn danh mục".t()
+                                )
                             }
                         },
                         singleLine = true
                     )
 
-                    DropdownMenu(
-                        expanded = expandedCatDropdown,
-                        onDismissRequest = { expandedCatDropdown = false },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        categories.forEach { cat ->
-                            DropdownMenuItem(
-                                text = { Text(cat.name) },
-                                onClick = {
-                                    categoryInputText = cat.name
-                                    expandedCatDropdown = false
-                                }
+                    val showDropdown = expandedCatDropdown && (filteredCategories.isNotEmpty() || (categoryInputText.trim().isNotEmpty() && !categories.any { it.name.equals(categoryInputText.trim(), ignoreCase = true) }))
+
+                    if (showDropdown) {
+                        DropdownMenu(
+                            expanded = true,
+                            onDismissRequest = { expandedCatDropdown = false },
+                            modifier = if (catFieldWidth > 0) {
+                                Modifier
+                                    .width(with(LocalDensity.current) { catFieldWidth.toDp() })
+                                    .heightIn(max = 240.dp)
+                            } else {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 240.dp)
+                            },
+                            properties = PopupProperties(
+                                focusable = false, // Cho phép gõ bàn phím liên tục không bị cướp focus hay ngắt quãng
+                                dismissOnBackPress = true,
+                                dismissOnClickOutside = true
                             )
+                        ) {
+                            if (filteredCategories.isNotEmpty()) {
+                                filteredCategories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.Default.Category,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        },
+                                        text = {
+                                            Text(
+                                                text = cat.name,
+                                                fontWeight = FontWeight.Medium,
+                                                fontSize = 14.sp
+                                            )
+                                        },
+                                        onClick = {
+                                            categoryInputText = cat.name
+                                            expandedCatDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+
+                            val cleanInput = categoryInputText.trim()
+                            if (cleanInput.isNotBlank() && !categories.any { it.name.equals(cleanInput, ignoreCase = true) }) {
+                                if (filteredCategories.isNotEmpty()) {
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                }
+                                DropdownMenuItem(
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.secondary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    },
+                                    text = {
+                                        Column {
+                                            Text(
+                                                text = "${"Thêm danh mục mới".t()}: \"$cleanInput\"",
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                            Text(
+                                                text = "Sẽ tự động lưu cùng mặt hàng".t(),
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                    },
+                                    onClick = {
+                                        expandedCatDropdown = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -9721,16 +10394,14 @@ fun CreateNewProductInImportDialog(
                     Text(text = "Theo dõi tồn kho".t(), fontSize = 14.sp)
                 }
 
-                if (trackInventoryVal) {
-                    OutlinedTextField(
-                        value = stockQuantityVal,
-                        onValueChange = { stockQuantityVal = it },
-                        label = { Text("Số lượng nhập".t()) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                }
+                OutlinedTextField(
+                    value = stockQuantityVal,
+                    onValueChange = { stockQuantityVal = it },
+                    label = { Text("Số lượng nhập".t()) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth().testTag("new_product_import_quantity_input"),
+                    singleLine = true
+                )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -9746,7 +10417,7 @@ fun CreateNewProductInImportDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Button(
-                        onClick = { imageLauncher.launch("image/*") },
+                        onClick = { imageLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier.testTag("import_select_image_btn")
                     ) {
@@ -9786,7 +10457,8 @@ fun CreateNewProductInImportDialog(
                     } else {
                         val cost = importPriceVal.replace(".", "").toDoubleOrNull() ?: 0.0
                         val sell = sellPriceVal.replace(".", "").toDoubleOrNull() ?: 0.0
-                        val stock = stockQuantityVal.toIntOrNull() ?: 0
+                        val stock = stockQuantityVal.toIntOrNull() ?: 1
+                        val finalStock = if (stock > 0) stock else 1
                         val catName = if (categoryInputText.isBlank()) "Không danh mục" else categoryInputText
 
                         viewModel.saveProductForImport(
@@ -9798,7 +10470,7 @@ fun CreateNewProductInImportDialog(
                             stockQuantity = 0, // Set initial stock in database to 0 so the import order updates it correctly
                             imageUri = imageUriVal,
                             onComplete = { createdProd ->
-                                onProductCreated(createdProd, stock)
+                                onProductCreated(createdProd, finalStock)
                             }
                         )
                     }
@@ -9981,9 +10653,10 @@ fun EditImportOrderDialog(
                         OutlinedTextField(
                             value = supplierName,
                             onValueChange = { 
-                                supplierName = it
+                                supplierName = it.capitalizeWords()
                                 supplierDropdownExpanded = true
                             },
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                             label = { Text("Tên nhà cung cấp".t()) },
                             placeholder = { Text("Nhập tên nhà cung cấp...".t()) },
                             modifier = Modifier
@@ -10919,7 +11592,12 @@ fun ImageCropperDialog(
 
 
 @Composable
-fun CustomerInvoiceCard(invoiceWithItems: InvoiceWithItems, searchQuery: String) {
+fun CustomerInvoiceCard(
+    invoiceWithItems: InvoiceWithItems,
+    searchQuery: String,
+    customerDebt: Double = 0.0,
+    showDebtSection: Boolean = customerDebt > 0.0
+) {
     val inv = invoiceWithItems.invoice
     val items = invoiceWithItems.items
     var showProfit by remember { mutableStateOf(false) }
@@ -10942,12 +11620,6 @@ fun CustomerInvoiceCard(invoiceWithItems: InvoiceWithItems, searchQuery: String)
                     fontWeight = FontWeight.Bold,
                     fontSize = 12.sp
                 )
-                Text(
-                    text = formatCurrency(inv.totalAmount),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
             }
             Spacer(modifier = Modifier.height(4.dp))
             Row(
@@ -10956,7 +11628,7 @@ fun CustomerInvoiceCard(invoiceWithItems: InvoiceWithItems, searchQuery: String)
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Khách hàng: ".t() + inv.storeName,
+                    text = "Khách hàng: ".t() + inv.displayCustomerName.ifBlank { "Khách lẻ".t() },
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -11052,6 +11724,77 @@ fun CustomerInvoiceCard(invoiceWithItems: InvoiceWithItems, searchQuery: String)
                     )
                 }
             }
+
+            // Bottom order total: Left label (TỔNG TIỀN:), Right value, all red, uppercase, size +2 (14sp)
+            androidx.compose.material3.HorizontalDivider(
+                modifier = Modifier.padding(top = 8.dp, bottom = 6.dp),
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("row_customer_order_total_${inv.id}"),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "TỔNG TIỀN:".t(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.5.sp,
+                    color = Color.Red
+                )
+                Text(
+                    text = formatCurrency(inv.totalAmount),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.5.sp,
+                    color = Color.Red
+                )
+            }
+            if (showDebtSection) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("row_customer_order_debt_${inv.id}"),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "CÔNG NỢ:".t(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = Color.Red
+                    )
+                    Text(
+                        text = formatCurrency(customerDebt),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = Color.Red
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("row_customer_order_grand_total_${inv.id}"),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "TỔNG:".t(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = Color.Red
+                    )
+                    Text(
+                        text = formatCurrency(inv.totalAmount + customerDebt),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.5.sp,
+                        color = Color.Red
+                    )
+                }
+            }
         }
     }
 }
@@ -11072,7 +11815,7 @@ fun OriginalInvoiceFloatingButton(
 
     // Gallery launcher
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
             pendingPreviewUri = uri
@@ -11323,7 +12066,7 @@ fun OriginalInvoiceFloatingButton(
             },
             onSelectGallery = {
                 showSourceChoiceDialog = false
-                galleryLauncher.launch("image/*")
+                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             }
         )
     }
@@ -11392,7 +12135,7 @@ fun OriginalInvoiceTopBarAction(
 
     // Gallery launcher
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
             pendingPreviewUri = uri
@@ -11647,7 +12390,7 @@ fun OriginalInvoiceTopBarAction(
             },
             onSelectGallery = {
                 showSourceChoiceDialog = false
-                galleryLauncher.launch("image/*")
+                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             }
         )
     }
@@ -12067,4 +12810,287 @@ fun InvoiceImageViewerDialog(
         }
     }
 }
+
+@Composable
+fun PrivacyPolicyPopupDialog(
+    onAgree: () -> Unit,
+    onCancel: () -> Unit
+) {
+    var isAgreedChecked by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val infiniteTransition = rememberInfiniteTransition(label = "privacy_scroll_arrow")
+    val arrowOffsetY by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "arrowOffsetY"
+    )
+
+    Dialog(
+        onDismissRequest = { /* Require explicit button action */ },
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.5f)
+                .testTag("privacy_policy_popup_card"),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "CHÍNH SÁCH BẢO MẬT & QUYỀN RIÊNG TƯ – PROODOS".t(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.5.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Cập nhật lần cuối: 05/11/2026".t(),
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "1. Dữ liệu chúng tôi thu thập".t(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "- Thông tin tài khoản: Địa chỉ email (Gmail), tên cửa hàng/tên hiển thị, ảnh đại diện và mật khẩu đã mã hóa khi bạn đăng ký tài khoản.\n- Dữ liệu bán hàng (POS): Danh mục, sản phẩm, giá cả, tồn kho, hóa đơn, đơn nhập hàng, công nợ, nhà cung cấp và thông tin khách hàng (tên, số điện thoại) do bạn chủ động tạo trong ứng dụng.".t(),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = "2. Quyền truy cập thiết bị".t(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "- Internet (INTERNET, ACCESS_NETWORK_STATE): Đồng bộ dữ liệu lên đám mây và gửi mã OTP khôi phục mật khẩu qua email.\n- Máy ảnh & Thư viện ảnh (CAMERA, Photo Picker - Tùy chọn): Chụp hoặc chọn ảnh hàng hóa, hóa đơn nhập hàng và ảnh đại diện tài khoản.\n- Lịch & Thông báo (READ/WRITE_CALENDAR, POST_NOTIFICATIONS - Tùy chọn): Tạo và xóa sự kiện nhắc hẹn thu hồi công nợ trên Lịch thiết bị.".t(),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = "3. Lưu trữ và Bảo mật dữ liệu".t(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "- Lưu trữ & Đồng bộ: Dữ liệu được lưu cục bộ trên thiết bị (cơ sở dữ liệu Room SQLite) khi dùng ngoại tuyến và được đồng bộ thời gian thực qua nền tảng Google Firebase (Firebase Auth, Cloud Firestore) khi bạn đăng nhập.\n- Mã hóa & Xác thực: Mật khẩu được mã hóa một chiều bằng thuật toán SHA-256 kết hợp chuỗi muối (salt) riêng biệt. Tính năng khôi phục mật khẩu sử dụng mã xác thực OTP 6 chữ số gửi qua email (hiệu lực 5 phút, giới hạn tối đa 5 lần thử).\n- Cam kết riêng tư: Dữ liệu chỉ phục vụ cho hoạt động quản lý cửa hàng của chính bạn; chúng tôi tuyệt đối không bán hoặc chia sẻ dữ liệu cho bên thứ ba vì mục đích quảng cáo.".t(),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = "4. Quyền kiểm soát và Xóa dữ liệu".t(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "- Bạn có thể xem, chỉnh sửa hoặc xóa bất kỳ sản phẩm, hóa đơn, công nợ và thông tin khách hàng nào trực tiếp trong ứng dụng.\n- Bạn có quyền xóa vĩnh viễn tài khoản cùng toàn bộ dữ liệu trên cả thiết bị lẫn máy chủ đám mây bất kỳ lúc nào tại mục Cài đặt tài khoản > Xóa tài khoản.".t(),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = "5. Thông tin liên hệ".t(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "- Mọi thắc mắc về bảo mật và quyền riêng tư, vui lòng liên hệ qua email: Cuonglam0411202@gmail.com".t(),
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Separated final row with rounded-square checkbox and agreement text
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { isAgreedChecked = !isAgreedChecked }
+                                .padding(vertical = 6.dp)
+                                .testTag("privacy_policy_checkbox_row"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(
+                                        if (isAgreedChecked) Color(0xFF66BB6A).copy(alpha = 0.14f)
+                                        else Color.Transparent
+                                    )
+                                    .border(
+                                        width = 1.5.dp,
+                                        color = if (isAgreedChecked) Color(0xFF66BB6A) else MaterialTheme.colorScheme.outline,
+                                        shape = RoundedCornerShape(5.dp)
+                                    )
+                                    .testTag("privacy_policy_checkbox"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isAgreedChecked) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Đã đồng ý".t(),
+                                        tint = Color(0xFF66BB6A),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Text(
+                                text = "Tôi đã đọc kĩ và đồng ý với các điều khoản sử dụng và quyền riêng tư".t(),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 16.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // Small translucent circle with downward arrow and gentle bobbing animation when more content exists below
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = scrollState.canScrollForward,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .offset(y = arrowOffsetY.dp)
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.55f))
+                                .border(1.5.dp, Color.White.copy(alpha = 0.85f), CircleShape)
+                                .clickable {
+                                    coroutineScope.launch {
+                                        scrollState.animateScrollTo(scrollState.maxValue)
+                                    }
+                                }
+                                .testTag("privacy_policy_scroll_down_btn"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDownward,
+                                contentDescription = "Cuộn xuống cuối".t(),
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = onCancel,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            contentColor = Color(0xFF1F2937)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFD1D5DB)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .testTag("privacy_policy_cancel_button")
+                    ) {
+                        Text(
+                            text = "Hủy".t(),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Button(
+                        onClick = onAgree,
+                        enabled = isAgreedChecked,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1976D2),
+                            contentColor = Color.White,
+                            disabledContainerColor = Color(0xFFBDBDBD),
+                            disabledContentColor = Color(0xFF757575)
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .testTag("privacy_policy_agree_button")
+                    ) {
+                        Text(
+                            text = "Đồng ý".t(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 

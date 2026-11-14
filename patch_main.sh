@@ -1,1 +1,0 @@
-sed -i 's/PosApp(viewModel = viewModel)/val currentLang by viewModel.currentLanguage.collectAsStateWithLifecycle()\n            androidx.compose.runtime.key(currentLang) {\n                PosApp(viewModel = viewModel)\n            }/g' app/src/main/java/com/example/MainActivity.kt

@@ -26,6 +26,8 @@ object Translator {
         "Ngày" to "Date",
         "Tháng" to "Month",
         "Lãi: " to "Profit: ",
+        "Ẩn lãi" to "Hide Profit",
+        "Hiện lãi" to "Show Profit",
         "Mã hóa đơn: " to "Invoice ID: ",
         "Số lượng: " to "Quantity: ",
         "Nhập: " to "Import: ",
@@ -47,6 +49,7 @@ object Translator {
         "Bố cục hiển thị: " to "Display Layout: ",
         "Dạng lưới G-View" to "Grid (G-View)",
         "Dạng danh sách L-View" to "List (L-View)",
+        "Tiếng Việt" to "Vietnamese",
         "Tiếng Anh" to "English",
         "Tiếng Trung Quốc" to "Chinese",
         "Liên hệ (Zalo): " to "Contact (Zalo): ",
@@ -270,8 +273,10 @@ object Translator {
         "Nhập tên mới cho khách hàng %s:" to "Enter new name for customer %s:",
         "Nhập tên nhà cung cấp..." to "Enter supplier name...",
         "Nhập tên sản phẩm" to "Enter product name",
-        "Phiên bản 1.3.9" to "Version 1.3.9",
-        "Phiên bản: 1.3.9" to "Version: 1.3.9",
+        "Phiên bản " to "Version ",
+        "Phiên bản: " to "Version: ",
+        "Phiên bản 1.6.98" to "Version 1.6.98",
+        "Phiên bản: 1.6.98" to "Version: 1.6.98",
         "Phân Loại Danh Mục" to "Categories",
         "Phân vùng nhóm danh mục hàng hóa để tối ưu hóa việc phân nhóm hiển thị trên POS." to "Organize product categories to optimize POS displays.",
         "Quyền lịch đã được cấp. Hãy nhấn 'Lưu lịch hẹn' một lần nữa để lưu." to "Calendar permission granted. Tap 'Save Schedule' again to save.",
@@ -291,7 +296,7 @@ object Translator {
         "Sao lưu cơ sở dữ liệu bán hàng đám mây" to "Cloud Sales Database Backup",
         "Sao lưu dữ liệu" to "Backup Data",
         "Sao lưu thành công" to "Backup successful",
-        "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB." to "Backup all data in the application completely (products, categories, invoices, purchase orders, system config, images). Supports file size up to 800MB.",
+        "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập hàng, ảnh hóa đơn gốc, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB." to "Backup all data in the application completely (products, categories, invoices, purchase orders, original invoice photos, system config, images). Supports file size up to 800MB.",
         "SĐT: " to "Phone: ",
         "Sản phẩm" to "Products",
         "Sản phẩm sắp hết hàng (< 5)" to "Items running low (< 5)",
@@ -326,6 +331,7 @@ object Translator {
         "Thành tiền: " to "Subtotal: ",
         "Thêm danh mục" to "Add Category",
         "Thêm danh mục mới" to "Add New Category",
+        "Sẽ tự động lưu cùng mặt hàng" to "Will be automatically saved with the product",
         "Thêm hàng mới" to "Add New Product",
         "Thêm mặt hàng" to "Add Product",
         "Thêm mặt hàng từ giỏ hàng" to "Add items from cart",
@@ -461,6 +467,9 @@ object Translator {
         "Đại diện trên POS" to "POS Representation",
         "Ảnh sản phẩm" to "Product Image",
         "Để đảm bảo an toàn cho dữ liệu bán hàng của bạn, vui lòng thực hiện sao lưu trước khi tiến hành xóa toàn bộ dữ liệu khỏi hệ thống." to "To ensure the safety of your sales data, please perform a backup before proceeding with deleting all system data.",
+        "Xác nhận khôi phục dữ liệu" to "Confirm Data Restore",
+        "Bạn có chắc chắn muốn khôi phục dữ liệu từ tệp này không?\n\nQuá trình này sẽ thay thế dữ liệu hiện tại trong hệ thống (mặt hàng, danh mục, hóa đơn, đơn nhập hàng...) bằng dữ liệu từ bản sao lưu đã chọn." to "Are you sure you want to restore data from this file?\n\nThis process will replace current system data (products, categories, invoices, import orders...) with the data from the selected backup.",
+        "Đồng ý khôi phục" to "Confirm Restore",
         "Lập báo cáo" to "Generate Report",
         "Từ ngày" to "From Date",
         "Đến ngày" to "To Date",
@@ -493,7 +502,216 @@ object Translator {
         "Bạn có chắc chắn muốn hoàn" to "Are you sure you want to return",
         "sản phẩm với tổng số tiền là" to "items with the total amount of",
         "không?\n\nHệ thống sẽ tự động trừ kho và cộng lại tiền mặt." to "?\n\nThe system will automatically deduct stock and refund cash.",
-        "Số lượng hoàn" to "Return Quantity"
+        "Số lượng hoàn" to "Return Quantity",
+        "TỔNG TIỀN:" to "ORDER TOTAL:",
+        "CÔNG NỢ:" to "DEBT:",
+        "Công nợ:" to "Debt:",
+        "TỔNG:" to "TOTAL:",
+        "Nhập Gmail đã đăng kí" to "Enter registered Gmail",
+        "Nhập Gmail đã đăng kí..." to "Enter registered Gmail...",
+        "Đã đồng bộ trực tuyến" to "Synced online",
+        "Dữ liệu đã được đồng bộ trực tuyến chắc chắn và an toàn trên đám mây." to "Data is securely synced online in the cloud.",
+        "Đang đồng bộ" to "Syncing",
+        "Đang đồng bộ..." to "Syncing...",
+        "Đang đồng bộ hóa..." to "Syncing...",
+        "Đang đồng bộ hóa dữ liệu với đám mây theo thời gian thực..." to "Syncing data with the cloud in real time...",
+        "Ngoại tuyến" to "Offline",
+        "Chưa đăng nhập. Dữ liệu đang được lưu cục bộ trên thiết bị này." to "Not signed in. Data is saved locally on this device.",
+        "Đã đồng bộ trực tuyến thành công. Dữ liệu an toàn trên đám mây." to "Synced online successfully. Data is safe in the cloud.",
+        "Đang đồng bộ hóa dữ liệu với đám mây..." to "Syncing data with the cloud...",
+        "Ngoại tuyến. Dữ liệu lưu cục bộ trên thiết bị." to "Offline. Data is saved locally on this device.",
+        "Đang đồng bộ hóa dữ liệu..." to "Syncing data...",
+        "Đã đồng bộ hóa dữ liệu (Nhấn để làm mới)" to "Data synced (Tap to refresh)",
+        "Đồng bộ hóa tất cả ảnh & dữ liệu" to "Sync all images & data",
+        "Dữ liệu đã được đồng bộ trực tuyến an toàn!" to "Data has been safely synced online!",
+        "Đồng bộ hóa thất bại, vui lòng kiểm tra kết nối mạng" to "Sync failed, please check your network connection",
+        "Tài khoản của tôi" to "My Account",
+        "Tài khoản" to "Account",
+        "Tài khoản & Đồng bộ" to "Account & Sync",
+        "Chưa đăng nhập • Hoạt động ngoại tuyến" to "Not signed in • Working offline",
+        "Đăng nhập tài khoản để đồng bộ hóa dữ liệu tức thì trên nhiều thiết bị. Mọi thiết bị đăng nhập chung tài khoản sẽ thấy cùng một dữ liệu trong thời gian thực." to "Sign in to instantly sync data across multiple devices. All devices signed in with the same account will see the same data in real time.",
+        "Đăng nhập / Đăng ký" to "Sign In / Register",
+        "Cài đặt tài khoản" to "Account Settings",
+        "Đồng bộ dữ liệu đang có trong máy" to "Sync local device data",
+        "Đồng bộ dữ liệu trong máy" to "Sync local device data",
+        "Bạn có muốn đồng bộ toàn bộ dữ liệu đang có trên máy lên tài khoản đám mây không?" to "Do you want to sync all local data on this device to your cloud account?",
+        "Toàn bộ dữ liệu trên máy sẽ được đồng bộ đầy đủ lên đám mây:\n• Sản phẩm & Tồn kho: Đồng bộ tất cả sản phẩm, hình ảnh, số lượng và giá (gộp tồn kho nếu trùng thông tin).\n• Hóa đơn bán hàng: Đồng bộ toàn bộ hóa đơn và các mặt hàng chi tiết.\n• Quản lý công nợ: Đồng bộ tất cả các đơn công nợ kèm lịch sử đã thanh toán nợ.\n• Đơn hàng nhập: Đồng bộ toàn bộ đơn nhập, danh sách mặt hàng và ảnh hóa đơn chứng từ." to "All data on this device will be fully synced to the cloud:\n• Products & Inventory: Sync all products, images, quantities, and prices (merges stock if matching).\n• Sales Invoices: Sync all invoices and line items.\n• Debt Management: Sync all credit orders and debt payment history.\n• Import Orders: Sync all import orders, item lists, and receipt images.",
+        "Đang đồng bộ toàn bộ sản phẩm, hóa đơn, công nợ, đơn nhập..." to "Syncing all products, invoices, debts, and import orders...",
+        "Đồng ý đồng bộ" to "Confirm Sync",
+        "Đăng xuất" to "Sign out",
+        "Xác nhận đăng xuất" to "Confirm Sign Out",
+        "Bạn có chắc chắn muốn đăng xuất tài khoản này không? Tất cả dữ liệu của bạn luôn được đồng bộ hóa an toàn trên đám mây và sẽ hiển thị đầy đủ trên mọi thiết bị khi bạn đăng nhập lại." to "Are you sure you want to sign out of this account? All your data remains safely synced in the cloud and will be available on any device when you sign back in.",
+        "Đã đăng xuất. Dữ liệu chưa đăng nhập trước đó đã được khôi phục trên máy." to "Signed out. Previous local guest data has been restored on this device.",
+        "Đã đăng xuất tài khoản" to "Signed out of account",
+        "Quay lại" to "Back",
+        "Lưu thay đổi" to "Save Changes",
+        "Vui lòng nhập mật khẩu cũ" to "Please enter your current password",
+        "Mật khẩu cũ không chính xác" to "Current password is incorrect",
+        "Mật khẩu mới cần tối thiểu 8 ký tự, gồm ít nhất 1 chữ in hoa và 1 số" to "New password must be at least 8 characters, including at least 1 uppercase letter and 1 number",
+        "Mật khẩu mới không trùng khớp" to "New passwords do not match",
+        "Đã lưu và đồng bộ thay đổi thành công lên đám mây!" to "Changes saved and synced to the cloud!",
+        "Không thể lưu thay đổi" to "Unable to save changes",
+        "Đặt lại mật khẩu thành công!" to "Password reset successfully!",
+        "Đổi ảnh đại diện" to "Change Avatar",
+        "Chọn lại ảnh khác" to "Choose Another Photo",
+        "Đã chỉnh sửa ảnh (Nhấn 'Lưu thay đổi' để cập nhật)" to "Photo edited (Tap 'Save Changes' to update)",
+        "Thông tin tài khoản" to "Account Information",
+        "Email tài khoản" to "Account Email",
+        "Tên cửa hàng / Tên hiển thị" to "Store Name / Display Name",
+        "Nhập tên hiển thị mới..." to "Enter new display name...",
+        "Đổi mật khẩu" to "Change Password",
+        "Nhập mật khẩu cũ" to "Enter current password",
+        "Nhập mật khẩu mới" to "Enter new password",
+        "8+ ký tự" to "8+ chars",
+        "1 chữ in hoa" to "1 uppercase",
+        "1 chữ số" to "1 number",
+        "Nhập lại mật khẩu mới" to "Confirm new password",
+        "Quên mật khẩu?" to "Forgot password?",
+        "Xóa tài khoản" to "Delete Account",
+        "Xóa vĩnh viễn tài khoản và toàn bộ dữ liệu trên đám mây" to "Permanently delete account and all cloud data",
+        "Đã chọn và cắt ảnh đại diện thành công" to "Avatar selected and cropped successfully",
+        "Xác thực xóa tài khoản" to "Verify Account Deletion",
+        "Vui lòng nhập mật khẩu đăng nhập của tài khoản để tiếp tục:" to "Please enter your account password to continue:",
+        "Mật khẩu của bạn" to "Your password",
+        "Mật khẩu không chính xác. Vui lòng thử lại!" to "Incorrect password. Please try again!",
+        "XÁC NHẬN XÓA TÀI KHOẢN VĨNH VIỄN" to "CONFIRM PERMANENT ACCOUNT DELETION",
+        "Bạn có chắc chắn muốn xóa tài khoản này không?" to "Are you sure you want to delete this account?",
+        "Ngay lập tức tài khoản sẽ được xóa khỏi hệ thống trên đám mây và toàn bộ dữ liệu (sản phẩm, hóa đơn, đơn nhập, công nợ, cài đặt) sẽ bị XÓA VĨNH VIỄN trên đám mây và KHÔNG THỂ KHÔI PHỤC LẠI." to "Your account will be immediately removed from the cloud system and all data (products, invoices, import orders, debts, settings) will be PERMANENTLY DELETED and CANNOT BE RECOVERED.",
+        "Đã xóa vĩnh viễn tài khoản và toàn bộ dữ liệu!" to "Account and all data permanently deleted!",
+        "Đã xóa tài khoản trên thiết bị, một số dữ liệu đám mây có thể cần mạng để dọn sạch." to "Account removed from device; some cloud data may require a network connection to finish cleaning up.",
+        "Đang xóa..." to "Deleting...",
+        "XÓA VĨNH VIỄN" to "DELETE PERMANENTLY",
+        "Chỉnh sửa ảnh đại diện" to "Edit Avatar",
+        "Kéo để di chuyển, dùng thanh trượt để thu phóng hoặc nút xoay ảnh" to "Drag to move, use the slider to zoom or the rotate button",
+        "Chỉnh sửa avatar" to "Edit avatar",
+        "Không thể tải ảnh. Vui lòng thử lại." to "Unable to load image. Please try again.",
+        "Thu nhỏ" to "Zoom out",
+        "Phóng to" to "Zoom in",
+        "Xoay ảnh 90 độ" to "Rotate 90 degrees",
+        "Góc xoay" to "Rotation",
+        "Hướng dẫn sử dụng" to "User Guide",
+        "Xem lại hướng dẫn chi tiết các tính năng cơ bản trong ứng dụng (Bán hàng, Hóa đơn & Báo cáo, Quản lý kho, Nhập hàng, Công nợ, Khách hàng, Sao lưu dữ liệu)." to "Review the step-by-step guide to core app features (POS Sales, Invoices & Reports, Inventory, Import Orders, Debt Management, Customers, Data Backup).",
+        "Xem lại hướng dẫn" to "View User Guide",
+        "Bỏ qua" to "Skip",
+        "Tiếp theo" to "Next",
+        "Xong" to "Done",
+        "BÁN HÀNG" to "POS SALES",
+        "Bán hàng & Thu ngân (POS)" to "Sales & Cashier (POS)",
+        "Tạo đơn và tính tiền nhanh" to "Quick order creation & checkout",
+        "Chọn sản phẩm, quét mã vạch, tính tiền và thanh toán nhanh cho khách." to "Select products, scan barcodes, calculate totals, and check out customers quickly.",
+        "Hóa đơn & Báo cáo" to "Invoices & Reports",
+        "Quản lý đơn & thống kê lãi" to "Order management & profit stats",
+        "Tra cứu lịch sử đơn bán và tổng hợp doanh thu, lợi nhuận theo thời gian." to "Look up sales history and track total revenue and profit over time.",
+        "QUẢN LÝ" to "MANAGEMENT",
+        "Quản lý mặt hàng" to "Product Management",
+        "Cài đặt sản phẩm & giá bán" to "Configure products & selling prices",
+        "Thêm, sửa sản phẩm, phân loại danh mục, thiết lập giá vốn và giá bán." to "Add or edit products, organize categories, and set cost and selling prices.",
+        "Theo dõi số lượng tồn kho" to "Track inventory quantities",
+        "Kiểm soát số lượng hàng còn trong kho và tổng giá trị tồn kho thực tế." to "Monitor remaining stock levels and actual total inventory value.",
+        "Lập đơn nhập từ nhà cung cấp" to "Create purchase orders from suppliers",
+        "Ghi nhận phiếu nhập kho, nhà cung cấp, chi phí nhập và tự động cộng tồn kho." to "Record stock-in receipts, suppliers, import costs, and automatically add inventory.",
+        "Theo dõi các khoản nợ" to "Track customer debts",
+        "Quản lý danh sách khách nợ, lịch hẹn trả và ghi nhận thanh toán công nợ." to "Manage debtors, payment due dates, and record debt repayments.",
+        "Quản lý khách hàng" to "Customer Management",
+        "Lịch sử mua & công nợ khách" to "Customer purchase & debt history",
+        "Lưu thông tin khách hàng, xem nhanh các đơn đã mua và tổng chi tiêu." to "Save customer info and quickly view past orders and total spending.",
+        "CÀI ĐẶT" to "SETTINGS",
+        "Sao lưu & Khôi phục" to "Backup & Restore",
+        "Bảo vệ dữ liệu cửa hàng" to "Protect store data",
+        "Sao lưu và khôi phục toàn bộ dữ liệu bán hàng an toàn khi đổi máy." to "Safely back up and restore all store sales data when switching devices.",
+        "Người sáng lập: Cường lâm" to "Founder: Cuong Lam",
+        "Chính sách quyền riêng tư" to "Privacy Policy",
+        "Chính sách quyền riêng tư & An toàn dữ liệu" to "Privacy Policy & Data Safety",
+        "CHÍNH SÁCH BẢO MẬT & QUYỀN RIÊNG TƯ – PROODOS" to "PRIVACY & SECURITY POLICY – PROODOS",
+        "Cập nhật lần cuối: 05/11/2026" to "Last updated: 05/11/2026",
+        "1. Dữ liệu chúng tôi thu thập" to "1. Data We Collect",
+        "- Thông tin tài khoản: Địa chỉ email (Gmail), tên cửa hàng/tên hiển thị, ảnh đại diện và mật khẩu đã mã hóa khi bạn đăng ký tài khoản.\n- Dữ liệu bán hàng (POS): Danh mục, sản phẩm, giá cả, tồn kho, hóa đơn, đơn nhập hàng, công nợ, nhà cung cấp và thông tin khách hàng (tên, số điện thoại) do bạn chủ động tạo trong ứng dụng." to "- Account Information: Email address (Gmail), store/display name, avatar, and encrypted password when you register an account.\n- Sales Data (POS): Categories, products, prices, inventory, invoices, import orders, debts, suppliers, and customer info (name, phone number) actively created by you in the app.",
+        "2. Quyền truy cập thiết bị" to "2. Device Permissions",
+        "- Internet (INTERNET, ACCESS_NETWORK_STATE): Đồng bộ dữ liệu lên đám mây và gửi mã OTP khôi phục mật khẩu qua email.\n- Máy ảnh & Thư viện ảnh (CAMERA, Photo Picker - Tùy chọn): Chụp hoặc chọn ảnh hàng hóa, hóa đơn nhập hàng và ảnh đại diện tài khoản.\n- Lịch & Thông báo (READ/WRITE_CALENDAR, POST_NOTIFICATIONS - Tùy chọn): Tạo và xóa sự kiện nhắc hẹn thu hồi công nợ trên Lịch thiết bị." to "- Internet (INTERNET, ACCESS_NETWORK_STATE): Sync data to the cloud and send password recovery OTP codes via email.\n- Camera & Photo Library (CAMERA, Photo Picker - Optional): Take or select photos of products, import receipts, and account avatars.\n- Calendar & Notifications (READ/WRITE_CALENDAR, POST_NOTIFICATIONS - Optional): Create and remove debt collection reminder events on your device Calendar.",
+        "3. Lưu trữ và Bảo mật dữ liệu" to "3. Data Storage and Security",
+        "- Lưu trữ & Đồng bộ: Dữ liệu được lưu cục bộ trên thiết bị (cơ sở dữ liệu Room SQLite) khi dùng ngoại tuyến và được đồng bộ thời gian thực qua nền tảng Google Firebase (Firebase Auth, Cloud Firestore) khi bạn đăng nhập.\n- Mã hóa & Xác thực: Mật khẩu được mã hóa một chiều bằng thuật toán SHA-256 kết hợp chuỗi muối (salt) riêng biệt. Tính năng khôi phục mật khẩu sử dụng mã xác thực OTP 6 chữ số gửi qua email (hiệu lực 5 phút, giới hạn tối đa 5 lần thử).\n- Cam kết riêng tư: Dữ liệu chỉ phục vụ cho hoạt động quản lý cửa hàng của chính bạn; chúng tôi tuyệt đối không bán hoặc chia sẻ dữ liệu cho bên thứ ba vì mục đích quảng cáo." to "- Storage & Sync: Data is stored locally on your device (Room SQLite database) when offline and synced in real time via Google Firebase (Firebase Auth, Cloud Firestore) when signed in.\n- Encryption & Authentication: Passwords are one-way hashed using SHA-256 with a unique salt. Password recovery uses a 6-digit OTP sent via email (valid for 5 minutes, max 5 attempts).\n- Privacy Commitment: Your data is used solely for managing your own store; we never sell or share your data with third parties for advertising.",
+        "4. Quyền kiểm soát và Xóa dữ liệu" to "4. Data Control and Deletion",
+        "- Bạn có thể xem, chỉnh sửa hoặc xóa bất kỳ sản phẩm, hóa đơn, công nợ và thông tin khách hàng nào trực tiếp trong ứng dụng.\n- Bạn có quyền xóa vĩnh viễn tài khoản cùng toàn bộ dữ liệu trên cả thiết bị lẫn máy chủ đám mây bất kỳ lúc nào tại mục Cài đặt tài khoản > Xóa tài khoản." to "- You can view, edit, or delete any products, invoices, debts, and customer information directly within the app.\n- You have the right to permanently delete your account and all associated data from both your device and cloud servers at any time in Account Settings > Delete Account.",
+        "5. Thông tin liên hệ" to "5. Contact Information",
+        "- Mọi thắc mắc về bảo mật và quyền riêng tư, vui lòng liên hệ qua email: Cuonglam0411202@gmail.com" to "- For any questions regarding security and privacy, please contact us via email: Cuonglam0411202@gmail.com",
+        "Tôi đã đọc kĩ và đồng ý với các điều khoản sử dụng và quyền riêng tư" to "I have carefully read and agree to the Terms of Use and Privacy Policy",
+        "Đã đồng ý" to "Agreed",
+        "Cuộn xuống cuối" to "Scroll to bottom",
+        "Đồng ý" to "Agree",
+        "Đang kiểm tra tài khoản..." to "Checking account...",
+        "Tài khoản Gmail này đã được đăng ký trước đó. Đã điền sẵn để bạn nhập mật khẩu đăng nhập." to "This Gmail account is already registered. It has been pre-filled for you to enter your password.",
+        "Đang kết nối Google..." to "Connecting to Google...",
+        "Tạo tài khoản mới" to "Create New Account",
+        "Đăng nhập" to "Sign In",
+        "Gợi ý tài khoản:" to "Suggested accounts:",
+        "Mật khẩu" to "Password",
+        "Ẩn mật khẩu" to "Hide password",
+        "Hiện mật khẩu" to "Show password",
+        "Vui lòng điền đầy đủ tài khoản/Gmail và mật khẩu" to "Please enter both your Gmail/account and password",
+        "Mật khẩu không chính xác. Vui lòng kiểm tra lại." to "Incorrect password. Please check and try again.",
+        "Đăng nhập thành công! Toàn bộ dữ liệu tài khoản đã được đồng bộ hóa tức thì." to "Signed in successfully! All account data has been synced immediately.",
+        "Lỗi đăng nhập: " to "Sign-in error: ",
+        "Đang đăng nhập..." to "Signing in...",
+        "Bạn chưa có tài khoản?" to "Don't have an account?",
+        "Đang xử lý..." to "Processing...",
+        "Đăng ký ngay" to "Register now",
+        "Tạo tài khoản & Mật khẩu" to "Create Account & Password",
+        "Vui lòng hoàn tất thông tin để lưu trữ tài khoản và kích hoạt sao lưu đám mây." to "Please complete the information to save your account and activate cloud backup.",
+        "Tên tài khoản / Cửa hàng" to "Account / Store Name",
+        "Nhập tên cửa hàng của bạn..." to "Enter your store name...",
+        "Tài khoản Gmail (Đã liên kết Google)" to "Gmail Account (Google Linked)",
+        "Tài khoản Gmail đăng ký" to "Registered Gmail Account",
+        "nhapemail@gmail.com" to "yourname@gmail.com",
+        "Đã xác thực" to "Verified",
+        "Chọn tài khoản Google" to "Choose Google Account",
+        "Nhập mật khẩu" to "Enter Password",
+        "Tối thiểu 8 ký tự, 1 hoa, 1 số" to "Min 8 chars, 1 uppercase, 1 number",
+        "Bao gồm ít nhất 8 ký tự" to "At least 8 characters",
+        "Có ít nhất 1 ký tự in hoa (A-Z)" to "At least 1 uppercase letter (A-Z)",
+        "Có ít nhất 1 ký tự là số (0-9)" to "At least 1 number (0-9)",
+        "Nhập lại mật khẩu" to "Confirm Password",
+        "Khớp với mật khẩu phía trên" to "Must match the password above",
+        "Mật khẩu khớp chính xác" to "Passwords match",
+        "Mật khẩu nhập lại không khớp" to "Passwords do not match",
+        "Vui lòng điền đầy đủ thông tin và đảm bảo mật khẩu khớp tiêu chuẩn" to "Please fill in all fields and ensure the password meets requirements",
+        "Tài khoản Gmail này đã được đăng ký trước đó. Vui lòng nhập mật khẩu để đăng nhập." to "This Gmail account is already registered. Please enter your password to sign in.",
+        "Lỗi tạo tài khoản: " to "Account creation error: ",
+        "Đang tạo tài khoản..." to "Creating account...",
+        "Tạo tài khoản" to "Create Account",
+        "Chọn / Đổi tài khoản Google khác" to "Choose / Switch to another Google account",
+        "Tìm tài khoản" to "Find Account",
+        "Xác nhận tài khoản" to "Confirm Account",
+        "Mã xác nhận" to "Verification Code",
+        "Mật khẩu mới" to "New Password",
+        "Hoàn tất" to "Complete",
+        "Vui lòng nhập địa chỉ email hoặc tên tài khoản của bạn." to "Please enter your email address or account name.",
+        "Không tìm thấy tài khoản nào khớp với thông tin này." to "No account found matching this information.",
+        "Mã xác nhận đã hết hạn. Vui lòng yêu cầu mã mới." to "Verification code has expired. Please request a new code.",
+        "Bạn đã nhập sai quá 5 lần. Vui lòng bấm 'Gửi lại mã' để nhận mã mới." to "You have entered the wrong code more than 5 times. Please tap 'Resend code' to get a new one.",
+        "Mật khẩu phải có ít nhất 6 ký tự." to "Password must be at least 6 characters.",
+        "Mật khẩu xác nhận không trùng khớp." to "Confirmation password does not match.",
+        "Nhập địa chỉ email của bạn." to "Enter your email address.",
+        "Tiếp tục" to "Continue",
+        "Xác nhận tài khoản của bạn" to "Confirm Your Account",
+        "Chúng tôi đã tìm thấy tài khoản của bạn. Vui lòng xác nhận phương thức nhận mã khôi phục." to "We found your account. Please confirm how you want to receive your recovery code.",
+        "Tài khoản POS đã đồng bộ" to "Synced POS Account",
+        "Gửi mã qua email" to "Send code via email",
+        "Bạn tuyệt đối KHÔNG được chia sẻ mã này cho bất kì ai" to "NEVER share this code with anyone",
+        "Mã xác thực OTP gồm 6 chữ số sẽ được gửi trực tiếp trong email của bạn (không kèm liên kết)." to "A 6-digit OTP verification code will be sent directly to your email (without any links).",
+        "Đang gửi mã tới Gmail..." to "Sending code to Gmail...",
+        "Không phải bạn?" to "Not you?",
+        "Mã OTP có thể sẽ gửi đến hòm thư của bạn trong vài phút nữa" to "The OTP code may take a few minutes to arrive in your inbox",
+        "Mã đã hết hạn" to "Code expired",
+        "Gửi lại mã" to "Resend code",
+        "Tạo mật khẩu mới" to "Create New Password",
+        "Tạo mật khẩu có ít nhất 6 ký tự. Đó phải là mật khẩu mà người khác không thể đoán được." to "Create a password with at least 6 characters. It should be something others cannot guess.",
+        "Tối thiểu 6 ký tự" to "Minimum 6 characters",
+        "Xác nhận mật khẩu mới" to "Confirm New Password",
+        "Đăng xuất khỏi các thiết bị khác" to "Sign out of other devices",
+        "Chọn tùy chọn này nếu người khác đã sử dụng tài khoản của bạn." to "Select this option if someone else has used your account.",
+        "Đặt lại mật khẩu" to "Reset Password",
+        "Đổi mật khẩu thành công!" to "Password Changed Successfully!",
+        "Vào ứng dụng ngay" to "Enter App Now"
     )
 
     private val chineseMap = mapOf(
@@ -517,6 +735,8 @@ object Translator {
         "Ngày" to "日期",
         "Tháng" to "月",
         "Lãi: " to "利润: ",
+        "Ẩn lãi" to "隐藏利润",
+        "Hiện lãi" to "显示利润",
         "Mã hóa đơn: " to "发票号: ",
         "Số lượng: " to "数量: ",
         "Nhập: " to "进价: ",
@@ -538,6 +758,7 @@ object Translator {
         "Bố cục hiển thị: " to "显示布局: ",
         "Dạng lưới G-View" to "网格视图 (G-View)",
         "Dạng danh sách L-View" to "列表视图 (L-View)",
+        "Tiếng Việt" to "越南语",
         "Tiếng Anh" to "英语",
         "Tiếng Trung Quốc" to "中文",
         "Liên hệ (Zalo): " to "联系 (Zalo): ",
@@ -761,8 +982,10 @@ object Translator {
         "Nhập tên mới cho khách hàng %s:" to "为客户 %s 输入新名称:",
         "Nhập tên nhà cung cấp..." to "输入供应商名称...",
         "Nhập tên sản phẩm" to "输入产品名称",
-        "Phiên bản 1.3.9" to "版本 1.3.9",
-        "Phiên bản: 1.3.9" to "版本: 1.3.9",
+        "Phiên bản " to "版本 ",
+        "Phiên bản: " to "版本: ",
+        "Phiên bản 1.6.98" to "版本 1.6.98",
+        "Phiên bản: 1.6.98" to "版本: 1.6.98",
         "Phân Loại Danh Mục" to "分类归档",
         "Phân vùng nhóm danh mục hàng hóa để tối ưu hóa việc phân nhóm hiển thị trên POS." to "对商品分类进行分区，以优化POS上的分组显示。",
         "Quyền lịch đã được cấp. Hãy nhấn 'Lưu lịch hẹn' một lần nữa để lưu." to "已授予日历权限。请再次点击 '保存约还日程' 进行保存。",
@@ -782,7 +1005,7 @@ object Translator {
         "Sao lưu cơ sở dữ liệu bán hàng đám mây" to "云端销售数据库备份",
         "Sao lưu dữ liệu" to "数据备份",
         "Sao lưu thành công" to "备份成功",
-        "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB." to "完整备份应用程序中的所有数据（产品、分类、账单、采购订单、系统配置、图片）。最大支持 800MB 文件的备份。",
+        "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập hàng, ảnh hóa đơn gốc, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB." to "完整备份应用程序中的所有数据（产品、分类、账单、采购订单、原始发票照片、系统配置、图片）。最大支持 800MB 文件的备份。",
         "SĐT: " to "电话: ",
         "Sản phẩm" to "产品",
         "Sản phẩm sắp hết hàng (< 5)" to "库存紧张产品 (< 5)",
@@ -817,6 +1040,7 @@ object Translator {
         "Thành tiền: " to "金额: ",
         "Thêm danh mục" to "添加分类",
         "Thêm danh mục mới" to "添加新分类",
+        "Sẽ tự động lưu cùng mặt hàng" to "将自动与商品一起保存",
         "Thêm hàng mới" to "添加新商品",
         "Thêm mặt hàng" to "添加商品",
         "Thêm mặt hàng từ giỏ hàng" to "从购物车添加商品",
@@ -952,6 +1176,9 @@ object Translator {
         "Đại diện trên POS" to "POS展示图",
         "Ảnh sản phẩm" to "产品图片",
         "Để đảm bảo an toàn cho dữ liệu bán hàng của bạn, vui lòng thực hiện sao lưu trước khi tiến hành xóa toàn bộ dữ liệu khỏi hệ thống." to "为了确保销售数据的安全，在继续删除系统所有数据之前，请先执行数据备份。",
+        "Xác nhận khôi phục dữ liệu" to "确认恢复数据",
+        "Bạn có chắc chắn muốn khôi phục dữ liệu từ tệp này không?\n\nQuá trình này sẽ thay thế dữ liệu hiện tại trong hệ thống (mặt hàng, danh mục, hóa đơn, đơn nhập hàng...) bằng dữ liệu từ bản sao lưu đã chọn." to "您确定要从此文件恢复数据吗？\n\n此过程将使用所选备份中的数据替换系统中的当前数据（商品、分类、账单、采购订单等）。",
+        "Đồng ý khôi phục" to "确认恢复",
         "Lập báo cáo" to "生成报告",
         "Từ ngày" to "起始日期",
         "Đến ngày" to "截止日期",
@@ -984,7 +1211,215 @@ object Translator {
         "Bạn có chắc chắn muốn hoàn" to "您确定要退货",
         "sản phẩm với tổng số tiền là" to "件商品，总金额为",
         "không?\n\nHệ thống sẽ tự động trừ kho và cộng lại tiền mặt." to "吗？\n\n系统将自动扣减库存并退还现金。",
-        "Số lượng hoàn" to "退货数量"
+        "Số lượng hoàn" to "退货数量",
+        "TỔNG TIỀN:" to "订单总额:",
+        "CÔNG NỢ:" to "欠款:",
+        "Công nợ:" to "欠款:",
+        "TỔNG:" to "总计:",
+        "Nhập Gmail đã đăng kí" to "输入已注册的 Gmail",
+        "Nhập Gmail đã đăng kí..." to "输入已注册的 Gmail...",
+        "Đã đồng bộ trực tuyến" to "已在线同步",
+        "Dữ liệu đã được đồng bộ trực tuyến chắc chắn và an toàn trên đám mây." to "数据已安全可靠地在线同步到云端。",
+        "Đang đồng bộ" to "正在同步",
+        "Đang đồng bộ..." to "正在同步...",
+        "Đang đồng bộ hóa..." to "正在同步...",
+        "Đang đồng bộ hóa dữ liệu với đám mây theo thời gian thực..." to "正在与云端实时同步数据...",
+        "Ngoại tuyến" to "离线",
+        "Chưa đăng nhập. Dữ liệu đang được lưu cục bộ trên thiết bị này." to "未登录。数据当前保存在本设备本地。",
+        "Đã đồng bộ trực tuyến thành công. Dữ liệu an toàn trên đám mây." to "在线同步成功。数据已安全保存在云端。",
+        "Đang đồng bộ hóa dữ liệu với đám mây..." to "正在与云端同步数据...",
+        "Ngoại tuyến. Dữ liệu lưu cục bộ trên thiết bị." to "离线。数据保存在设备本地。",
+        "Đang đồng bộ hóa dữ liệu..." to "正在同步数据...",
+        "Đã đồng bộ hóa dữ liệu (Nhấn để làm mới)" to "数据已同步（点击刷新）",
+        "Đồng bộ hóa tất cả ảnh & dữ liệu" to "同步所有图片与数据",
+        "Dữ liệu đã được đồng bộ trực tuyến an toàn!" to "数据已安全在线同步！",
+        "Đồng bộ hóa thất bại, vui lòng kiểm tra kết nối mạng" to "同步失败，请检查网络连接",
+        "Tài khoản của tôi" to "我的账户",
+        "Tài khoản" to "账户",
+        "Tài khoản & Đồng bộ" to "账户与同步",
+        "Chưa đăng nhập • Hoạt động ngoại tuyến" to "未登录 • 离线运行",
+        "Đăng nhập tài khoản để đồng bộ hóa dữ liệu tức thì trên nhiều thiết bị. Mọi thiết bị đăng nhập chung tài khoản sẽ thấy cùng một dữ liệu trong thời gian thực." to "登录账户即可在多台设备间即时同步数据。所有登录同一账户的设备都将实时看到相同的数据。",
+        "Đăng nhập / Đăng ký" to "登录 / 注册",
+        "Cài đặt tài khoản" to "账户设置",
+        "Đồng bộ dữ liệu đang có trong máy" to "同步本机现有数据",
+        "Đồng bộ dữ liệu trong máy" to "同步本机数据",
+        "Bạn có muốn đồng bộ toàn bộ dữ liệu đang có trên máy lên tài khoản đám mây không?" to "您想将本机上的所有数据同步到云端账户吗？",
+        "Toàn bộ dữ liệu trên máy sẽ được đồng bộ đầy đủ lên đám mây:\n• Sản phẩm & Tồn kho: Đồng bộ tất cả sản phẩm, hình ảnh, số lượng và giá (gộp tồn kho nếu trùng thông tin).\n• Hóa đơn bán hàng: Đồng bộ toàn bộ hóa đơn và các mặt hàng chi tiết.\n• Quản lý công nợ: Đồng bộ tất cả các đơn công nợ kèm lịch sử đã thanh toán nợ.\n• Đơn hàng nhập: Đồng bộ toàn bộ đơn nhập, danh sách mặt hàng và ảnh hóa đơn chứng từ." to "本机上的所有数据将完整同步到云端：\n• 产品与库存：同步所有产品、图片、数量和价格（若信息相同则合并库存）。\n• 销售账单：同步所有账单及商品明细。\n• 债务管理：同步所有欠款订单及已还款历史记录。\n• 采购订单：同步所有采购单、商品列表及凭证发票照片。",
+        "Đang đồng bộ toàn bộ sản phẩm, hóa đơn, công nợ, đơn nhập..." to "正在同步所有产品、账单、债务、采购单...",
+        "Đồng ý đồng bộ" to "确认同步",
+        "Đăng xuất" to "退出登录",
+        "Xác nhận đăng xuất" to "确认退出登录",
+        "Bạn có chắc chắn muốn đăng xuất tài khoản này không? Tất cả dữ liệu của bạn luôn được đồng bộ hóa an toàn trên đám mây và sẽ hiển thị đầy đủ trên mọi thiết bị khi bạn đăng nhập lại." to "您确定要退出此账户吗？您的所有数据均已安全同步在云端，重新登录时将在任何设备上完整显示。",
+        "Đã đăng xuất. Dữ liệu chưa đăng nhập trước đó đã được khôi phục trên máy." to "已退出登录。之前的本地未登录数据已在本机恢复。",
+        "Đã đăng xuất tài khoản" to "已退出账户",
+        "Quay lại" to "返回",
+        "Lưu thay đổi" to "保存更改",
+        "Vui lòng nhập mật khẩu cũ" to "请输入旧密码",
+        "Mật khẩu cũ không chính xác" to "旧密码不正确",
+        "Mật khẩu mới cần tối thiểu 8 ký tự, gồm ít nhất 1 chữ in hoa và 1 số" to "新密码至少需要 8 个字符，且包含至少 1 个大写字母和 1 个数字",
+        "Mật khẩu mới không trùng khớp" to "两次输入的新密码不一致",
+        "Đã lưu và đồng bộ thay đổi thành công lên đám mây!" to "更改已成功保存并同步到云端！",
+        "Không thể lưu thay đổi" to "无法保存更改",
+        "Đặt lại mật khẩu thành công!" to "密码重置成功！",
+        "Đổi ảnh đại diện" to "更换头像",
+        "Chọn lại ảnh khác" to "重新选择其他图片",
+        "Đã chỉnh sửa ảnh (Nhấn 'Lưu thay đổi' để cập nhật)" to "图片已编辑（点击“保存更改”以更新）",
+        "Thông tin tài khoản" to "账户信息",
+        "Email tài khoản" to "账户邮箱",
+        "Tên cửa hàng / Tên hiển thị" to "店铺名称 / 显示名称",
+        "Nhập tên hiển thị mới..." to "输入新的显示名称...",
+        "Đổi mật khẩu" to "修改密码",
+        "Nhập mật khẩu cũ" to "输入旧密码",
+        "Nhập mật khẩu mới" to "输入新密码",
+        "8+ ký tự" to "8+ 个字符",
+        "1 chữ in hoa" to "1 个大写字母",
+        "1 chữ số" to "1 个数字",
+        "Nhập lại mật khẩu mới" to "再次输入新密码",
+        "Quên mật khẩu?" to "忘记密码？",
+        "Xóa tài khoản" to "删除账户",
+        "Xóa vĩnh viễn tài khoản và toàn bộ dữ liệu trên đám mây" to "永久删除账户及云端所有数据",
+        "Đã chọn và cắt ảnh đại diện thành công" to "已成功选择并裁剪头像",
+        "Xác thực xóa tài khoản" to "验证删除账户",
+        "Vui lòng nhập mật khẩu đăng nhập của tài khoản để tiếp tục:" to "请输入账户登录密码以继续：",
+        "Mật khẩu của bạn" to "您的密码",
+        "Mật khẩu không chính xác. Vui lòng thử lại!" to "密码不正确，请重试！",
+        "XÁC NHẬN XÓA TÀI KHOẢN VĨNH VIỄN" to "确认永久删除账户",
+        "Bạn có chắc chắn muốn xóa tài khoản này không?" to "您确定要删除此账户吗？",
+        "Ngay lập tức tài khoản sẽ được xóa khỏi hệ thống trên đám mây và toàn bộ dữ liệu (sản phẩm, hóa đơn, đơn nhập, công nợ, cài đặt) sẽ bị XÓA VĨNH VIỄN trên đám mây và KHÔNG THỂ KHÔI PHỤC LẠI." to "账户将立即从云端系统中移除，所有数据（产品、账单、采购单、债务、设置）将在云端被永久删除且无法恢复。",
+        "Đã xóa vĩnh viễn tài khoản và toàn bộ dữ liệu!" to "已永久删除账户及所有数据！",
+        "Đã xóa tài khoản trên thiết bị, một số dữ liệu đám mây có thể cần mạng để dọn sạch." to "已在设备上删除账户，部分云端数据可能需要网络连接以完成清理。",
+        "Đang xóa..." to "正在删除...",
+        "XÓA VĨNH VIỄN" to "永久删除",
+        "Chỉnh sửa ảnh đại diện" to "编辑头像",
+        "Kéo để di chuyển, dùng thanh trượt để thu phóng hoặc nút xoay ảnh" to "拖动以移动，使用滑块缩放或点击旋转按钮",
+        "Chỉnh sửa avatar" to "编辑头像",
+        "Không thể tải ảnh. Vui lòng thử lại." to "无法加载图片，请重试。",
+        "Thu nhỏ" to "缩小",
+        "Phóng to" to "放大",
+        "Xoay ảnh 90 độ" to "旋转 90 度",
+        "Góc xoay" to "旋转角度",
+        "Hướng dẫn sử dụng" to "使用指南",
+        "Xem lại hướng dẫn chi tiết các tính năng cơ bản trong ứng dụng (Bán hàng, Hóa đơn & Báo cáo, Quản lý kho, Nhập hàng, Công nợ, Khách hàng, Sao lưu dữ liệu)." to "查看应用中基本功能的详细说明（收银销售、账单与报告、库存管理、采购进货、债务管理、客户管理、数据备份）。",
+        "Xem lại hướng dẫn" to "查看使用指南",
+        "Bỏ qua" to "跳过",
+        "Tiếp theo" to "下一步",
+        "Xong" to "完成",
+        "BÁN HÀNG" to "收银销售",
+        "Bán hàng & Thu ngân (POS)" to "销售与收银 (POS)",
+        "Tạo đơn và tính tiền nhanh" to "快速创建订单与结账",
+        "Chọn sản phẩm, quét mã vạch, tính tiền và thanh toán nhanh cho khách." to "选择产品、扫描条码、计算金额并为客户快速结账。",
+        "Hóa đơn & Báo cáo" to "账单与报告",
+        "Quản lý đơn & thống kê lãi" to "订单管理与利润统计",
+        "Tra cứu lịch sử đơn bán và tổng hợp doanh thu, lợi nhuận theo thời gian." to "查询销售订单历史，按时间汇总营业额与利润。",
+        "QUẢN LÝ" to "管理",
+        "Quản lý mặt hàng" to "商品管理",
+        "Cài đặt sản phẩm & giá bán" to "设置产品与售价",
+        "Thêm, sửa sản phẩm, phân loại danh mục, thiết lập giá vốn và giá bán." to "添加、编辑产品，划分分类，设置成本价和销售价。",
+        "Theo dõi số lượng tồn kho" to "跟踪库存数量",
+        "Kiểm soát số lượng hàng còn trong kho và tổng giá trị tồn kho thực tế." to "掌控仓库剩余商品数量及实际总库存价值。",
+        "Lập đơn nhập từ nhà cung cấp" to "创建供应商采购单",
+        "Ghi nhận phiếu nhập kho, nhà cung cấp, chi phí nhập và tự động cộng tồn kho." to "记录入库单、供应商、采购成本并自动增加库存。",
+        "Theo dõi các khoản nợ" to "跟踪欠款账目",
+        "Quản lý danh sách khách nợ, lịch hẹn trả và ghi nhận thanh toán công nợ." to "管理欠款客户名单、还款日程并记录债务清偿。",
+        "Quản lý khách hàng" to "客户管理",
+        "Lịch sử mua & công nợ khách" to "客户购买历史与欠款",
+        "Lưu thông tin khách hàng, xem nhanh các đơn đã mua và tổng chi tiêu." to "保存客户信息，快速查看已购订单和总消费额。",
+        "CÀI ĐẶT" to "设置",
+        "Sao lưu & Khôi phục" to "备份与恢复",
+        "Bảo vệ dữ liệu cửa hàng" to "保护店铺数据安全",
+        "Sao lưu và khôi phục toàn bộ dữ liệu bán hàng an toàn khi đổi máy." to "更换设备时安全备份并恢复全部销售数据。",
+        "Chính sách quyền riêng tư" to "隐私政策",
+        "Chính sách quyền riêng tư & An toàn dữ liệu" to "隐私政策与数据安全",
+        "CHÍNH SÁCH BẢO MẬT & QUYỀN RIÊNG TƯ – PROODOS" to "安全与隐私政策 – PROODOS",
+        "Cập nhật lần cuối: 05/11/2026" to "最后更新：2026/11/05",
+        "1. Dữ liệu chúng tôi thu thập" to "1. 我们收集的数据",
+        "- Thông tin tài khoản: Địa chỉ email (Gmail), tên cửa hàng/tên hiển thị, ảnh đại diện và mật khẩu đã mã hóa khi bạn đăng ký tài khoản.\n- Dữ liệu bán hàng (POS): Danh mục, sản phẩm, giá cả, tồn kho, hóa đơn, đơn nhập hàng, công nợ, nhà cung cấp và thông tin khách hàng (tên, số điện thoại) do bạn chủ động tạo trong ứng dụng." to "- 账户信息：注册账户时的电子邮箱（Gmail）、店铺名称/显示名称、头像及加密密码。\n- 销售数据（POS）：您在应用中主动创建的分类、产品、价格、库存、账单、采购订单、债务、供应商及客户信息（姓名、电话号码）。",
+        "2. Quyền truy cập thiết bị" to "2. 设备访问权限",
+        "- Internet (INTERNET, ACCESS_NETWORK_STATE): Đồng bộ dữ liệu lên đám mây và gửi mã OTP khôi phục mật khẩu qua email.\n- Máy ảnh & Thư viện ảnh (CAMERA, Photo Picker - Tùy chọn): Chụp hoặc chọn ảnh hàng hóa, hóa đơn nhập hàng và ảnh đại diện tài khoản.\n- Lịch & Thông báo (READ/WRITE_CALENDAR, POST_NOTIFICATIONS - Tùy chọn): Tạo và xóa sự kiện nhắc hẹn thu hồi công nợ trên Lịch thiết bị." to "- 网络权限 (INTERNET, ACCESS_NETWORK_STATE)：将数据同步至云端并通过邮件发送密码恢复 OTP 验证码。\n- 相机与相册 (CAMERA, Photo Picker - 可选)：拍摄或选择商品照片、采购发票照片及账户头像。\n- 日历与通知 (READ/WRITE_CALENDAR, POST_NOTIFICATIONS - 可选)：在设备日历上创建和删除债务催收提醒日程。",
+        "3. Lưu trữ và Bảo mật dữ liệu" to "3. 数据存储与安全",
+        "- Lưu trữ & Đồng bộ: Dữ liệu được lưu cục bộ trên thiết bị (cơ sở dữ liệu Room SQLite) khi dùng ngoại tuyến và được đồng bộ thời gian thực qua nền tảng Google Firebase (Firebase Auth, Cloud Firestore) khi bạn đăng nhập.\n- Mã hóa & Xác thực: Mật khẩu được mã hóa một chiều bằng thuật toán SHA-256 kết hợp chuỗi muối (salt) riêng biệt. Tính năng khôi phục mật khẩu sử dụng mã xác thực OTP 6 chữ số gửi qua email (hiệu lực 5 phút, giới hạn tối đa 5 lần thử).\n- Cam kết riêng tư: Dữ liệu chỉ phục vụ cho hoạt động quản lý cửa hàng của chính bạn; chúng tôi tuyệt đối không bán hoặc chia sẻ dữ liệu cho bên thứ ba vì mục đích quảng cáo." to "- 存储与同步：离线使用时数据保存在设备本地（Room SQLite 数据库），登录时通过 Google Firebase 平台（Firebase Auth、Cloud Firestore）进行实时同步。\n- 加密与验证：密码采用 SHA-256 算法结合独立盐值（salt）进行单向加密。密码恢复功能使用通过电子邮件发送的 6 位 OTP 验证码（有效期 5 分钟，最多尝试 5 次）。\n- 隐私承诺：数据仅用于您自己的店铺管理；我们绝不会出于广告目的向第三方出售或共享您的数据。",
+        "4. Quyền kiểm soát và Xóa dữ liệu" to "4. 数据控制与删除",
+        "- Bạn có thể xem, chỉnh sửa hoặc xóa bất kỳ sản phẩm, hóa đơn, công nợ và thông tin khách hàng nào trực tiếp trong ứng dụng.\n- Bạn có quyền xóa vĩnh viễn tài khoản cùng toàn bộ dữ liệu trên cả thiết bị lẫn máy chủ đám mây bất kỳ lúc nào tại mục Cài đặt tài khoản > Xóa tài khoản." to "- 您可以直接在应用中查看、编辑或删除任何产品、账单、债务和客户信息。\n- 您有权随时在“账户设置 > 删除账户”中永久删除您的账户以及设备和云端服务器上的全部数据。",
+        "5. Thông tin liên hệ" to "5. 联系信息",
+        "- Mọi thắc mắc về bảo mật và quyền riêng tư, vui lòng liên hệ qua email: Cuonglam0411202@gmail.com" to "- 如有任何关于安全与隐私的疑问，请通过电子邮件联系我们：Cuonglam0411202@gmail.com",
+        "Tôi đã đọc kĩ và đồng ý với các điều khoản sử dụng và quyền riêng tư" to "我已仔细阅读并同意使用条款和隐私政策",
+        "Đã đồng ý" to "已同意",
+        "Cuộn xuống cuối" to "滚动到底部",
+        "Đồng ý" to "同意",
+        "Đang kiểm tra tài khoản..." to "正在检查账户...",
+        "Tài khoản Gmail này đã được đăng ký trước đó. Đã điền sẵn để bạn nhập mật khẩu đăng nhập." to "该 Gmail 账户此前已注册，已为您预填以便输入密码登录。",
+        "Đang kết nối Google..." to "正在连接 Google...",
+        "Tạo tài khoản mới" to "创建新账户",
+        "Đăng nhập" to "登录",
+        "Gợi ý tài khoản:" to "推荐账户：",
+        "Mật khẩu" to "密码",
+        "Ẩn mật khẩu" to "隐藏密码",
+        "Hiện mật khẩu" to "显示密码",
+        "Vui lòng điền đầy đủ tài khoản/Gmail và mật khẩu" to "请完整填写账户/Gmail 和密码",
+        "Mật khẩu không chính xác. Vui lòng kiểm tra lại." to "密码不正确，请重新检查。",
+        "Đăng nhập thành công! Toàn bộ dữ liệu tài khoản đã được đồng bộ hóa tức thì." to "登录成功！所有账户数据已即时同步。",
+        "Lỗi đăng nhập: " to "登录错误：",
+        "Đang đăng nhập..." to "正在登录...",
+        "Bạn chưa có tài khoản?" to "还没有账户？",
+        "Đang xử lý..." to "正在处理...",
+        "Đăng ký ngay" to "立即注册",
+        "Tạo tài khoản & Mật khẩu" to "创建账户与密码",
+        "Vui lòng hoàn tất thông tin để lưu trữ tài khoản và kích hoạt sao lưu đám mây." to "请完善信息以保存账户并启用云端备份。",
+        "Tên tài khoản / Cửa hàng" to "账户 / 店铺名称",
+        "Nhập tên cửa hàng của bạn..." to "输入您的店铺名称...",
+        "Tài khoản Gmail (Đã liên kết Google)" to "Gmail 账户（已关联 Google）",
+        "Tài khoản Gmail đăng ký" to "注册 Gmail 账户",
+        "nhapemail@gmail.com" to "yourname@gmail.com",
+        "Đã xác thực" to "已验证",
+        "Chọn tài khoản Google" to "选择 Google 账户",
+        "Nhập mật khẩu" to "输入密码",
+        "Tối thiểu 8 ký tự, 1 hoa, 1 số" to "至少 8 个字符，1 个大写字母，1 个数字",
+        "Bao gồm ít nhất 8 ký tự" to "包含至少 8 个字符",
+        "Có ít nhất 1 ký tự in hoa (A-Z)" to "包含至少 1 个大写字母 (A-Z)",
+        "Có ít nhất 1 ký tự là số (0-9)" to "包含至少 1 个数字 (0-9)",
+        "Nhập lại mật khẩu" to "再次输入密码",
+        "Khớp với mật khẩu phía trên" to "需与上方密码一致",
+        "Mật khẩu khớp chính xác" to "密码完全一致",
+        "Mật khẩu nhập lại không khớp" to "两次输入的密码不一致",
+        "Vui lòng điền đầy đủ thông tin và đảm bảo mật khẩu khớp tiêu chuẩn" to "请填写完整信息并确保密码符合要求",
+        "Tài khoản Gmail này đã được đăng ký trước đó. Vui lòng nhập mật khẩu để đăng nhập." to "该 Gmail 账户此前已注册，请输入密码登录。",
+        "Lỗi tạo tài khoản: " to "创建账户错误：",
+        "Đang tạo tài khoản..." to "正在创建账户...",
+        "Tạo tài khoản" to "创建账户",
+        "Chọn / Đổi tài khoản Google khác" to "选择 / 切换其他 Google 账户",
+        "Tìm tài khoản" to "查找账户",
+        "Xác nhận tài khoản" to "确认账户",
+        "Mã xác nhận" to "验证码",
+        "Mật khẩu mới" to "新密码",
+        "Hoàn tất" to "完成",
+        "Vui lòng nhập địa chỉ email hoặc tên tài khoản của bạn." to "请输入您的电子邮箱地址或账户名称。",
+        "Không tìm thấy tài khoản nào khớp với thông tin này." to "未找到与此信息匹配的账户。",
+        "Mã xác nhận đã hết hạn. Vui lòng yêu cầu mã mới." to "验证码已过期，请重新获取新验证码。",
+        "Bạn đã nhập sai quá 5 lần. Vui lòng bấm 'Gửi lại mã' để nhận mã mới." to "您已输错超过 5 次，请点击“重新发送验证码”获取新验证码。",
+        "Mật khẩu phải có ít nhất 6 ký tự." to "密码至少需要 6 个字符。",
+        "Mật khẩu xác nhận không trùng khớp." to "确认密码不一致。",
+        "Nhập địa chỉ email của bạn." to "输入您的电子邮箱地址。",
+        "Tiếp tục" to "继续",
+        "Xác nhận tài khoản của bạn" to "确认您的账户",
+        "Chúng tôi đã tìm thấy tài khoản của bạn. Vui lòng xác nhận phương thức nhận mã khôi phục." to "我们已找到您的账户，请确认接收恢复验证码的方式。",
+        "Tài khoản POS đã đồng bộ" to "已同步 POS 账户",
+        "Gửi mã qua email" to "通过电子邮件发送验证码",
+        "Bạn tuyệt đối KHÔNG được chia sẻ mã này cho bất kì ai" to "切勿将此验证码分享给任何人",
+        "Mã xác thực OTP gồm 6 chữ số sẽ được gửi trực tiếp trong email của bạn (không kèm liên kết)." to "6 位数字 OTP 验证码将直接发送到您的电子邮箱（不包含任何链接）。",
+        "Đang gửi mã tới Gmail..." to "正在发送验证码至 Gmail...",
+        "Không phải bạn?" to "不是您本人？",
+        "Mã OTP có thể sẽ gửi đến hòm thư của bạn trong vài phút nữa" to "OTP 验证码可能会在几分钟内发送到您的收件箱",
+        "Mã đã hết hạn" to "验证码已过期",
+        "Gửi lại mã" to "重新发送验证码",
+        "Tạo mật khẩu mới" to "创建新密码",
+        "Tạo mật khẩu có ít nhất 6 ký tự. Đó phải là mật khẩu mà người khác không thể đoán được." to "创建至少包含 6 个字符的密码，且不易被他人猜到。",
+        "Tối thiểu 6 ký tự" to "至少 6 个字符",
+        "Xác nhận mật khẩu mới" to "确认新密码",
+        "Đăng xuất khỏi các thiết bị khác" to "从其他设备退出登录",
+        "Chọn tùy chọn này nếu người khác đã sử dụng tài khoản của bạn." to "如果他人曾使用过您的账户，请选择此项。",
+        "Đặt lại mật khẩu" to "重置密码",
+        "Đổi mật khẩu thành công!" to "密码修改成功！",
+        "Vào ứng dụng ngay" to "立即进入应用"
     )
 
     private val americanMap = mapOf(
@@ -1202,8 +1637,10 @@ object Translator {
         "Nhập tên nhà cung cấp..." to "Enter supplier name...",
         "Nhập tên sản phẩm" to "Product Name",
         "Nhập: " to "Import: ",
-        "Phiên bản 1.3.9" to "Version 1.3.9",
-        "Phiên bản: 1.3.9" to "Version: 1.3.9",
+        "Phiên bản " to "Version ",
+        "Phiên bản: " to "Version: ",
+        "Phiên bản 1.6.98" to "Version 1.6.98",
+        "Phiên bản: 1.6.98" to "Version: 1.6.98",
         "Phân Loại Danh Mục" to "Categories",
         "Phân vùng nhóm danh mục hàng hóa để tối ưu hóa việc phân nhóm hiển thị trên POS." to "Organize product categories to optimize POS displays.",
         "Quyền lịch đã được cấp. Hãy nhấn 'Lưu lịch hẹn' một lần nữa để lưu." to "Calendar permission granted. Tap 'Save Schedule' again to save.",
@@ -1223,7 +1660,7 @@ object Translator {
         "Sao lưu cơ sở dữ liệu bán hàng đám mây" to "Cloud Database Backup",
         "Sao lưu dữ liệu" to "Backup Data",
         "Sao lưu thành công" to "Backup completed",
-        "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB." to "Backup all data in the application completely (products, categories, invoices, purchase orders, system config, images). Supports file size up to 800MB.",
+        "Sao lưu toàn bộ dữ liệu có trong ứng dụng không bỏ sót thông tin nào cả (sản phẩm, danh mục, hóa đơn, đơn nhập hàng, ảnh hóa đơn gốc, cấu hình hệ thống, hình ảnh). Hỗ trợ kích thước tệp tối đa lên tới 800MB." to "Backup all data in the application completely (products, categories, invoices, purchase orders, original invoice photos, system config, images). Supports file size up to 800MB.",
         "SĐT: " to "Phone: ",
         "Sản phẩm" to "Products",
         "Sản phẩm sắp hết hàng (< 5)" to "Low stock items (< 5)",
@@ -1406,6 +1843,9 @@ object Translator {
         "Đại diện trên POS" to "POS Representation",
         "Ảnh sản phẩm" to "Product Image",
         "Để đảm bảo an toàn cho dữ liệu bán hàng của bạn, vui lòng thực hiện sao lưu trước khi tiến hành xóa toàn bộ dữ liệu khỏi hệ thống." to "To ensure the safety of your sales data, please perform a backup before proceeding with deleting all system data.",
+        "Xác nhận khôi phục dữ liệu" to "Confirm Data Restore",
+        "Bạn có chắc chắn muốn khôi phục dữ liệu từ tệp này không?\n\nQuá trình này sẽ thay thế dữ liệu hiện tại trong hệ thống (mặt hàng, danh mục, hóa đơn, đơn nhập hàng...) bằng dữ liệu từ bản sao lưu đã chọn." to "Are you sure you want to restore data from this file?\n\nThis process will replace current system data (products, categories, invoices, import orders...) with the data from the selected backup.",
+        "Đồng ý khôi phục" to "Confirm Restore",
         "Lập báo cáo" to "Generate Report",
         "Từ ngày" to "From Date",
         "Đến ngày" to "To Date",
@@ -1438,36 +1878,58 @@ object Translator {
         "Bạn có chắc chắn muốn hoàn" to "Are you sure you want to return",
         "sản phẩm với tổng số tiền là" to "items with the total amount of",
         "không?\n\nHệ thống sẽ tự động trừ kho và cộng lại tiền mặt." to "?\n\nThe system will automatically deduct stock and refund cash.",
-        "Số lượng hoàn" to "Return Quantity"
+        "Số lượng hoàn" to "Return Quantity",
+        "TỔNG TIỀN:" to "ORDER TOTAL:",
+        "CÔNG NỢ:" to "DEBT:",
+        "Công nợ:" to "Debt:",
+        "TỔNG:" to "TOTAL:",
+        "Nhập Gmail đã đăng kí" to "Enter registered Gmail",
+        "Nhập Gmail đã đăng kí..." to "Enter registered Gmail...",
+        "Tiếng Việt" to "Vietnamese",
+        "Tiếng Anh" to "English",
+        "Tiếng Trung Quốc" to "Chinese"
     )
 
+    fun normalizeLanguage(lang: String): String {
+        val trimmed = lang.trim()
+        return when {
+            trimmed.contains("Trung", ignoreCase = true) ||
+            trimmed.contains("Chinese", ignoreCase = true) ||
+            trimmed.contains("中文") ||
+            trimmed.contains("汉语") ||
+            trimmed.contains("华语") -> "Tiếng Trung Quốc"
+            trimmed.contains("Anh", ignoreCase = true) ||
+            trimmed.contains("English", ignoreCase = true) ||
+            trimmed.contains("Mỹ", ignoreCase = true) ||
+            trimmed.contains("Mĩ", ignoreCase = true) ||
+            trimmed.contains("US", ignoreCase = true) ||
+            trimmed.contains("英语") ||
+            trimmed.contains("英文") -> "Tiếng Anh"
+            else -> "Tiếng Việt"
+        }
+    }
+
     fun translate(text: String, lang: String): String {
+        val normLang = normalizeLanguage(lang)
+        val isEng = normLang == "Tiếng Anh"
+        val isChi = normLang == "Tiếng Trung Quốc"
+
         val mappedExact = when {
-            lang.contains("Anh", ignoreCase = true) || lang.contains("English", ignoreCase = true) || lang.contains("Mỹ", ignoreCase = true) || lang.contains("Mĩ", ignoreCase = true) || lang.contains("US", ignoreCase = true) -> {
-                americanMap[text] ?: englishMap[text]
-            }
-            lang.contains("Trung", ignoreCase = true) -> {
-                chineseMap[text]
-            }
+            isEng -> americanMap[text] ?: englishMap[text]
+            isChi -> chineseMap[text]
             else -> null
         }
         if (mappedExact != null) return mappedExact
 
         val trimmed = text.trim()
         val mapped = when {
-            lang.contains("Anh", ignoreCase = true) || lang.contains("English", ignoreCase = true) || lang.contains("Mỹ", ignoreCase = true) || lang.contains("Mĩ", ignoreCase = true) || lang.contains("US", ignoreCase = true) -> {
-                americanMap[trimmed] ?: englishMap[trimmed]
-            }
-            lang.contains("Trung", ignoreCase = true) -> {
-                chineseMap[trimmed]
-            }
+            isEng -> americanMap[trimmed] ?: englishMap[trimmed]
+            isChi -> chineseMap[trimmed]
             else -> null
         }
         if (mapped != null) return mapped
 
         // Pattern matching for dynamic templates
-        val isEng = lang.contains("Anh", ignoreCase = true) || lang.contains("English", ignoreCase = true) || lang.contains("Mỹ", ignoreCase = true) || lang.contains("Mĩ", ignoreCase = true) || lang.contains("US", ignoreCase = true)
-        val isChi = lang.contains("Trung", ignoreCase = true)
 
         if (isEng) {
             if (trimmed.startsWith("Có ") && trimmed.endsWith(" mặt hàng liên quan")) {
@@ -1514,6 +1976,38 @@ object Translator {
                 val prodName = trimmed.substring(36, trimmed.length - 27)
                 return "Are you sure you want to remove product '$prodName' from this category?"
             }
+            if (trimmed.startsWith("Đang đồng bộ (") && trimmed.endsWith(")...")) {
+                val pct = trimmed.substring(14, trimmed.length - 4)
+                return "Syncing ($pct)..."
+            }
+            if (trimmed.startsWith("Tài khoản hoặc Gmail '") && trimmed.contains("' chưa được tìm thấy trên hệ thống.")) {
+                val inputName = trimmed.substringAfter("Tài khoản hoặc Gmail '").substringBefore("' chưa được tìm thấy")
+                return "Account or Gmail '$inputName' was not found. Please check your registered Gmail or tap Register now below."
+            }
+            if (trimmed.startsWith("Tạo tài khoản thành công! Dữ liệu trên máy đã được đồng bộ vào tài khoản mới. Tên đăng nhập: ")) {
+                val info = trimmed.substringAfter("Tên đăng nhập: ")
+                return "Account created successfully! Local data has been synced to the new account. Sign-in ID: $info"
+            }
+            if (trimmed.startsWith("Chúng tôi đã gửi mã gồm 6 chữ số tới email ") && trimmed.endsWith(". Nhập mã đó để đặt lại mật khẩu.")) {
+                val mail = trimmed.substringAfter("tới email ").substringBefore(". Nhập mã đó")
+                return "We sent a 6-digit code to $mail. Enter that code to reset your password."
+            }
+            if (trimmed.startsWith("Mã hết hạn sau: ")) {
+                val timeStr = trimmed.substringAfter("Mã hết hạn sau: ")
+                return "Code expires in: $timeStr"
+            }
+            if (trimmed.startsWith("Gửi lại mã (") && trimmed.endsWith(")")) {
+                val sec = trimmed.substringAfter("Gửi lại mã (").substringBefore(")")
+                return "Resend code ($sec)"
+            }
+            if (trimmed.startsWith("Mã xác nhận không chính xác. Bạn còn ") && trimmed.endsWith(" lần thử.")) {
+                val rem = trimmed.substringAfter("Bạn còn ").substringBefore(" lần thử.")
+                return "Incorrect verification code. You have $rem attempts remaining."
+            }
+            if (trimmed.startsWith("Mật khẩu cho tài khoản ") && trimmed.contains(" đã được cập nhật thành công.")) {
+                val accName = trimmed.substringAfter("Mật khẩu cho tài khoản ").substringBefore(" đã được cập nhật")
+                return "Password for account $accName has been updated successfully. You are now signed in and can use your new password."
+            }
         } else if (isChi) {
             if (trimmed.startsWith("Có ") && trimmed.endsWith(" mặt hàng liên quan")) {
                 val num = trimmed.substring(3, trimmed.length - 19)
@@ -1558,6 +2052,38 @@ object Translator {
             if (trimmed.startsWith("Bạn có chắc chắn muốn xóa sản phẩm '") && trimmed.endsWith("' khỏi danh mục này không?")) {
                 val prodName = trimmed.substring(36, trimmed.length - 27)
                 return "您确定要将产品 '$prodName' 从此分类中移除吗？"
+            }
+            if (trimmed.startsWith("Đang đồng bộ (") && trimmed.endsWith(")...")) {
+                val pct = trimmed.substring(14, trimmed.length - 4)
+                return "正在同步 ($pct)..."
+            }
+            if (trimmed.startsWith("Tài khoản hoặc Gmail '") && trimmed.contains("' chưa được tìm thấy trên hệ thống.")) {
+                val inputName = trimmed.substringAfter("Tài khoản hoặc Gmail '").substringBefore("' chưa được tìm thấy")
+                return "系统中未找到账户或 Gmail '$inputName'。请检查您注册的 Gmail 或点击下方的立即注册。"
+            }
+            if (trimmed.startsWith("Tạo tài khoản thành công! Dữ liệu trên máy đã được đồng bộ vào tài khoản mới. Tên đăng nhập: ")) {
+                val info = trimmed.substringAfter("Tên đăng nhập: ")
+                return "创建账户成功！本机数据已同步至新账户。登录名：$info"
+            }
+            if (trimmed.startsWith("Chúng tôi đã gửi mã gồm 6 chữ số tới email ") && trimmed.endsWith(". Nhập mã đó để đặt lại mật khẩu.")) {
+                val mail = trimmed.substringAfter("tới email ").substringBefore(". Nhập mã đó")
+                return "我们已向邮箱 $mail 发送了 6 位数字验证码。请输入该验证码以重置密码。"
+            }
+            if (trimmed.startsWith("Mã hết hạn sau: ")) {
+                val timeStr = trimmed.substringAfter("Mã hết hạn sau: ")
+                return "验证码过期时间：$timeStr"
+            }
+            if (trimmed.startsWith("Gửi lại mã (") && trimmed.endsWith(")")) {
+                val sec = trimmed.substringAfter("Gửi lại mã (").substringBefore(")")
+                return "重新发送验证码 ($sec)"
+            }
+            if (trimmed.startsWith("Mã xác nhận không chính xác. Bạn còn ") && trimmed.endsWith(" lần thử.")) {
+                val rem = trimmed.substringAfter("Bạn còn ").substringBefore(" lần thử.")
+                return "验证码不正确。您还有 $rem 次尝试机会。"
+            }
+            if (trimmed.startsWith("Mật khẩu cho tài khoản ") && trimmed.contains(" đã được cập nhật thành công.")) {
+                val accName = trimmed.substringAfter("Mật khẩu cho tài khoản ").substringBefore(" đã được cập nhật")
+                return "账户 $accName 的密码已成功更新。您现已登录，从现在起可以使用新密码。"
             }
         }
 

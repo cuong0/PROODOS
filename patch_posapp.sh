@@ -1,2 +1,0 @@
-sed -i 's/val displayText = if (selectedSuppliers.contains("Tất cả")) "Tất cả" else selectedSuppliers.joinToString(", ")/val displayText = if (selectedSuppliers.contains("Tất cả")) "Tất cả".t() else selectedSuppliers.joinToString(", ")/g' app/src/main/java/com/example/ui/PosApp.kt
-sed -i 's/Text(supplier)/Text(if (supplier == "Tất cả") "Tất cả".t() else supplier)/g' app/src/main/java/com/example/ui/PosApp.kt
